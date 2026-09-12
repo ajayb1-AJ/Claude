@@ -1,0 +1,11 @@
+# Topic queue — one per line. Lines starting with # are ignored.
+# `python main.py --from-queue` takes the top line and removes it.
+# These are seed ideas in the "Gujarati moral & motivational stories" niche.
+સાચી મહેનતનું ફળ
+ગરીબ ખેડૂત અને પ્રામાણિકતા
+માતાની મમતાની અમૂલ્ય કિંમત
+અહંકારનું પતન
+નાની દયા, મોટું પરિણામ
+સંતોષ એ જ સાચું સુખ
+ગુરુનો સાચો બોધ
+ધીરજ રાખવાનું ફળ

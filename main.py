@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+"""Gujarati faceless YouTube automation — command-line entry point.
+
+Examples
+--------
+  # One video from a topic you type:
+  python main.py --topic "સાચી મહેનતનું ફળ"
+
+  # Pull the next topic from the queue (topics/topics.txt):
+  python main.py --from-queue
+
+  # Generate N videos from the queue:
+  python main.py --from-queue --count 3
+
+  # Build the video but DON'T upload (great for reviewing output first):
+  python main.py --topic "..." --no-upload
+
+  # Let Claude brainstorm a fresh topic in the niche:
+  python main.py --auto-topic
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+from src.config import Config
+from src.pipeline import run_pipeline
+
+QUEUE = Path(__file__).parent / "topics" / "topics.txt"
+
+
+def _read_queue() -> list[str]:
+    if not QUEUE.exists():
+        return []
+    lines = QUEUE.read_text(encoding="utf-8").splitlines()
+    return [ln.strip() for ln in lines if ln.strip() and not ln.startswith("#")]
+
+
+def _pop_queue() -> str | None:
+    topics = _read_queue()
+    if not topics:
+        return None
+    topic = topics[0]
+    remaining = topics[1:]
+    header = "# Topic queue — one per line. Lines starting with # are ignored.\n"
+    QUEUE.write_text(header + "\n".join(remaining) + ("\n" if remaining else ""), encoding="utf-8")
+    return topic
+
+
+def _auto_topic(cfg: Config) -> str:
+    """Ask Claude for one fresh topic idea in the configured niche."""
+    from anthropic import Anthropic
+
+    client = Anthropic(api_key=cfg.anthropic_api_key)
+    resp = client.messages.create(
+        model=cfg.get("script", "model", default="claude-sonnet-5"),
+        max_tokens=100,
+        system=cfg.get("niche", "system_prompt", default=""),
+        messages=[{
+            "role": "user",
+            "content": (
+                "એક નવો, રસપ્રદ વિડિયો વિષય ફક્ત એક લીટીમાં ગુજરાતીમાં આપો. "
+                "બીજું કંઈ લખશો નહીં."
+            ),
+        }],
+    )
+    return "".join(b.text for b in resp.content if b.type == "text").strip()
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Gujarati faceless YouTube automation")
+    src = parser.add_mutually_exclusive_group(required=True)
+    src.add_argument("--topic", help="Explicit topic (Gujarati or English)")
+    src.add_argument("--from-queue", action="store_true", help="Take topic(s) from topics/topics.txt")
+    src.add_argument("--auto-topic", action="store_true", help="Let Claude pick a topic")
+
+    parser.add_argument("--count", type=int, default=1, help="How many videos (queue/auto only)")
+    parser.add_argument("--no-upload", action="store_true", help="Build only; skip YouTube upload")
+    parser.add_argument("--config", default=None, help="Path to config.yaml")
+    args = parser.parse_args(argv)
+
+    cfg = Config.load(args.config) if args.config else Config.load()
+    do_upload = None if not args.no_upload else False
+
+    topics: list[str] = []
+    if args.topic:
+        topics = [args.topic]
+    elif args.from_queue:
+        for _ in range(args.count):
+            t = _pop_queue()
+            if t is None:
+                break
+            topics.append(t)
+        if not topics:
+            print("Topic queue is empty (topics/topics.txt).", file=sys.stderr)
+            return 1
+    elif args.auto_topic:
+        topics = [_auto_topic(cfg) for _ in range(args.count)]
+
+    failures = 0
+    for topic in topics:
+        try:
+            run_pipeline(topic, cfg, do_upload=do_upload)
+        except Exception as exc:
+            failures += 1
+            print(f"!! Failed on '{topic}': {exc}", file=sys.stderr)
+
+    print(f"\nDone. {len(topics) - failures}/{len(topics)} succeeded.")
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

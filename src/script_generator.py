@@ -1,0 +1,120 @@
+"""Generate a Gujarati narration script + YouTube metadata using Claude.
+
+Returns a structured dict so downstream stages (voice, visuals, upload) can
+consume the same object.
+"""
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import dataclass, asdict
+from typing import Any
+
+from anthropic import Anthropic
+
+from .config import Config
+
+
+@dataclass
+class VideoScript:
+    topic: str
+    title: str          # Gujarati YouTube title
+    narration: str      # the full Gujarati voiceover text
+    description: str    # YouTube description (Gujarati + a little English)
+    tags: list[str]
+    scenes: list[str]   # English image-search queries, one per visual beat
+    moral: str          # the takeaway (also spoken at the end of narration)
+
+    def to_json(self) -> str:
+        return json.dumps(asdict(self), ensure_ascii=False, indent=2)
+
+
+_PROMPT = """\
+તમારે નીચેના વિષય પર એક ટૂંકી ગુજરાતી પ્રેરક/બોધક વાર્તા YouTube વિડિયો માટે \
+બનાવવાની છે.
+
+વિષય: {topic}
+
+નિયમો:
+- narration આશરે {max_words} શબ્દોમાં હોય (વિડિયો ~{duration} સેકન્ડ ચાલે).
+- narration એ ફક્ત બોલવાનો ટેક્સ્ટ હોય — કોઈ stage directions, કૌંસ કે \
+"scene 1" જેવા લેબલ નહીં.
+- અંતે એક સ્પષ્ટ moral વાક્ય narration માં જ આવવું જોઈએ.
+- {scene_count} scenes આપો; દરેક scene એ ANGREJI (English) માં એક stock-image \
+search query હોય જે વાર્તાના એ ભાગને દ્રશ્ય રૂપે બતાવે. Visual theme: {visual_theme}
+- title: {title_style}
+
+ફક્ત નીચેના JSON format માં જ જવાબ આપો, બીજું કંઈ નહીં:
+{{
+  "title": "...",
+  "narration": "...",
+  "description": "...",
+  "tags": ["...", "..."],
+  "scenes": ["english query 1", "english query 2"],
+  "moral": "..."
+}}
+"""
+
+
+def _extract_json(text: str) -> dict[str, Any]:
+    """Pull the first JSON object out of the model response, tolerating fences."""
+    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    raw = fenced.group(1) if fenced else None
+    if raw is None:
+        brace = re.search(r"\{.*\}", text, re.DOTALL)
+        if not brace:
+            raise ValueError(f"No JSON object found in model response:\n{text[:500]}")
+        raw = brace.group(0)
+    return json.loads(raw)
+
+
+def generate_script(topic: str, cfg: Config) -> VideoScript:
+    if not cfg.anthropic_api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY is not set (see .env.example)")
+
+    client = Anthropic(api_key=cfg.anthropic_api_key)
+
+    prompt = _PROMPT.format(
+        topic=topic,
+        max_words=cfg.get("script", "max_words", default=210),
+        duration=cfg.get("channel", "target_duration_sec", default=90),
+        scene_count=cfg.get("visuals", "images_per_video", default=6),
+        visual_theme=cfg.get("niche", "visual_theme", default=""),
+        title_style=cfg.get("niche", "title_style", default="short Gujarati title"),
+    )
+
+    resp = client.messages.create(
+        model=cfg.get("script", "model", default="claude-sonnet-5"),
+        max_tokens=2000,
+        system=cfg.get("niche", "system_prompt", default=""),
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = "".join(block.text for block in resp.content if block.type == "text")
+    payload = _extract_json(text)
+
+    tags = list(payload.get("tags", [])) + list(
+        cfg.get("upload", "default_tags", default=[])
+    )
+    footer = cfg.get("upload", "description_footer", default="")
+    description = payload.get("description", "").strip() + ("\n" + footer if footer else "")
+
+    return VideoScript(
+        topic=topic,
+        title=payload["title"].strip(),
+        narration=payload["narration"].strip(),
+        description=description.strip(),
+        tags=_dedupe(tags),
+        scenes=payload.get("scenes", []),
+        moral=payload.get("moral", "").strip(),
+    )
+
+
+def _dedupe(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in items:
+        key = item.lower().strip()
+        if key and key not in seen:
+            seen.add(key)
+            out.append(item.strip())
+    return out

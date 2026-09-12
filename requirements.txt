@@ -1,0 +1,16 @@
+# Core
+anthropic>=0.40.0          # Gujarati script generation (Claude)
+requests>=2.31.0           # ElevenLabs + Pexels HTTP calls
+PyYAML>=6.0                # config.yaml parsing
+python-dotenv>=1.0.0       # load API keys from .env
+
+# YouTube upload (Data API v3)
+google-api-python-client>=2.100.0
+google-auth>=2.23.0
+google-auth-oauthlib>=1.1.0
+google-auth-httplib2>=0.1.1
+
+# Note: ffmpeg is a SYSTEM dependency, not a pip package.
+#   macOS:  brew install ffmpeg
+#   Ubuntu: sudo apt-get install ffmpeg
+#   Windows: https://ffmpeg.org/download.html

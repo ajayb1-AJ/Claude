@@ -1,0 +1,19 @@
+# Secrets
+.env
+client_secrets.json
+youtube_token.json
+*.token.json
+
+# Generated media
+output/
+assets/images/
+assets/music/*.mp3
+assets/fonts/*.ttf
+assets/fonts/*.otf
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store

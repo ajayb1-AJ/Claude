@@ -1,0 +1,85 @@
+# ============================================================================
+# Gujarati faceless YouTube automation — main configuration
+# Everything that shapes the channel lives here. Change the niche by editing
+# `niche` below; no code changes needed.
+# ============================================================================
+
+channel:
+  language: "Gujarati"
+  language_code: "gu"
+  # Long-form storytelling (16:9) or Shorts (9:16).
+  format: "long"          # "long" -> 1920x1080, "short" -> 1080x1920
+  target_duration_sec: 90 # rough target; the script prompt aims for this
+
+# ---------------------------------------------------------------------------
+# NICHE — the flagship niche chosen after research:
+# Gujarati moral & motivational stories (બોધકથા / પ્રેરક વાર્તા).
+# To pivot the channel, rewrite `system_prompt` and `title_style`.
+# ---------------------------------------------------------------------------
+niche:
+  name: "Gujarati moral & motivational stories"
+  system_prompt: |
+    તમે એક કુશળ ગુજરાતી વાર્તાકાર છો જે YouTube માટે ટૂંકી પ્રેરક
+    અને બોધદાયક વાર્તાઓ લખો છો. તમારી વાર્તાઓ:
+    - શુદ્ધ, સરળ અને રોજિંદી ગુજરાતી ભાષામાં હોય (કઠિન સંસ્કૃત શબ્દો ટાળો)
+    - પહેલી 5 સેકન્ડમાં દર્શકને પકડી રાખે એવો hook હોય
+    - એક સ્પષ્ટ નૈતિક બોધ (moral) સાથે અંત આવે
+    - કુટુંબ સાથે જોઈ શકાય એવી, સકારાત્મક અને સન્માનજનક હોય
+    - કોઈ ચોક્કસ ધર્મ, જાતિ કે વ્યક્તિની ટીકા ન કરે
+  # Used to steer image search queries (in English, since stock APIs index in English).
+  visual_theme: "warm cinematic indian village, temple, nature, elderly wisdom, soft light"
+  title_style: "curiosity-driven Gujarati title with an emoji, under 70 characters"
+
+script:
+  model: "claude-sonnet-5"     # good quality/cost balance for narration
+  # Approx words for the target duration (Gujarati narration ~2.2 words/sec).
+  max_words: 210
+
+voiceover:
+  provider: "elevenlabs"
+  # eleven_multilingual_v2 / eleven_turbo_v2_5 both support Gujarati.
+  model_id: "eleven_multilingual_v2"
+  # Fallback voice if ELEVENLABS_VOICE_ID is not set in .env.
+  # (This is ElevenLabs' "Rachel" — replace with a voice you've tested on Gujarati.)
+  default_voice_id: "21m00Tcm4TlvDq8ikWAM"
+  stability: 0.5
+  similarity_boost: 0.75
+
+visuals:
+  provider: "pexels"          # "pexels" | "local" | "color"
+  images_per_video: 6         # a new image every ~duration/6 seconds
+  # If provider == "local", pull images from this dir instead of Pexels.
+  local_dir: "assets/images"
+  ken_burns: true             # subtle slow zoom on each still
+
+subtitles:
+  enabled: true
+  # A Gujarati-capable font MUST be present or subtitles render as boxes.
+  # Download Noto Sans Gujarati and place the .ttf here (see README).
+  font_file: "assets/fonts/NotoSansGujarati-Bold.ttf"
+  font_size: 22               # scaled for 1080p; auto-adjusts for shorts
+  primary_color: "&H00FFFFFF" # white (ASS format, &HAABBGGRR)
+  outline_color: "&H00000000" # black outline
+  outline: 2
+
+music:
+  enabled: false              # set true and add a royalty-free track below
+  file: "assets/music/background.mp3"
+  volume: 0.08                # ducked well under the narration
+
+upload:
+  enabled: true               # you chose full auto-upload
+  privacy: "private"          # START on "private" — flip to "public" once you trust output
+  category_id: "22"           # 22 = People & Blogs; 24 = Entertainment
+  made_for_kids: false
+  # Appended to every video's description.
+  description_footer: |
+
+    ---
+    🙏 જો વાર્તા ગમી હોય તો Like, Share અને Subscribe કરો.
+  default_tags:
+    - "ગુજરાતી વાર્તા"
+    - "પ્રેરક વાર્તા"
+    - "બોધકથા"
+    - "gujarati moral stories"
+    - "gujarati motivation"
