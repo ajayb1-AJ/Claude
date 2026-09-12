@@ -98,10 +98,13 @@ def main() -> int:
     )
 
     # 6. Optional keys ------------------------------------------------------
+    has_stock = bool(
+        os.getenv("PEXELS_API_KEY", "").strip() or os.getenv("PIXABAY_API_KEY", "").strip()
+    )
     check(
-        bool(os.getenv("PEXELS_API_KEY", "").strip()),
-        "PEXELS_API_KEY is set (optional — real stock photos)",
-        "Free key at pexels.com/api; without it you get color slides.",
+        has_stock,
+        "PEXELS_API_KEY or PIXABAY_API_KEY is set (optional — real stock photos)",
+        "Free keys at pexels.com/api / pixabay.com/api; without them you get color slides.",
         warn_only=True,
     )
 

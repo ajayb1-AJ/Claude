@@ -30,6 +30,7 @@ class Config:
     elevenlabs_api_key: str = field(default_factory=lambda: os.getenv("ELEVENLABS_API_KEY", ""))
     elevenlabs_voice_id: str = field(default_factory=lambda: os.getenv("ELEVENLABS_VOICE_ID", ""))
     pexels_api_key: str = field(default_factory=lambda: os.getenv("PEXELS_API_KEY", ""))
+    pixabay_api_key: str = field(default_factory=lambda: os.getenv("PIXABAY_API_KEY", ""))
     youtube_client_secrets: str = field(
         default_factory=lambda: os.getenv("YOUTUBE_CLIENT_SECRETS", "client_secrets.json")
     )

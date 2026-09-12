@@ -46,7 +46,10 @@ voiceover:
   similarity_boost: 0.75
 
 visuals:
-  provider: "pexels"          # "pexels" | "local" | "color"
+  # "pexels"  -> Pexels first, Pixabay fallback (recommended)
+  # "pixabay" -> Pixabay first, Pexels fallback
+  # "local"   -> use images from local_dir | "color" -> solid slides (testing)
+  provider: "pexels"
   images_per_video: 6         # a new image every ~duration/6 seconds
   # If provider == "local", pull images from this dir instead of Pexels.
   local_dir: "assets/images"
