@@ -58,10 +58,7 @@ def synthesize(text: str, out_dir: Path, cfg: Config, make_srt: bool = True) -> 
     body = {
         "text": text,
         "model_id": cfg.get("voiceover", "model_id", default="eleven_multilingual_v2"),
-        "voice_settings": {
-            "stability": cfg.get("voiceover", "stability", default=0.5),
-            "similarity_boost": cfg.get("voiceover", "similarity_boost", default=0.75),
-        },
+        "voice_settings": _voice_settings(cfg),
     }
     headers = {"xi-api-key": cfg.elevenlabs_api_key, "Content-Type": "application/json"}
 
@@ -83,6 +80,21 @@ def synthesize(text: str, out_dir: Path, cfg: Config, make_srt: bool = True) -> 
         srt_path.write_text(_alignment_to_srt(alignment), encoding="utf-8")
 
     return VoiceResult(audio_path=audio_path, srt_path=srt_path, duration_sec=duration)
+
+
+def _voice_settings(cfg: Config) -> dict:
+    """Expressiveness controls. Lower stability + higher style = more emotion.
+
+    - stability: 0.0-1.0. LOW = more emotional/variable, HIGH = flat/monotone.
+    - style: 0.0-1.0. Higher = more stylistic exaggeration (more feeling).
+    - use_speaker_boost: sharper, closer to the reference voice.
+    """
+    return {
+        "stability": cfg.get("voiceover", "stability", default=0.35),
+        "similarity_boost": cfg.get("voiceover", "similarity_boost", default=0.80),
+        "style": cfg.get("voiceover", "style", default=0.45),
+        "use_speaker_boost": cfg.get("voiceover", "use_speaker_boost", default=True),
+    }
 
 
 def _alignment_duration(alignment: dict | None) -> float:

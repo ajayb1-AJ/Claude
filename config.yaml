@@ -46,8 +46,11 @@ voiceover:
   # Default voice = "Aj Katihyawadi" (your custom Gujarati voice).
   # Overridable per-run by setting ELEVENLABS_VOICE_ID in .env.
   default_voice_id: "aGiqwq7BkeMTuW3338ZJ"
-  stability: 0.5
-  similarity_boost: 0.75
+  # --- expressiveness (lower stability + higher style = MORE emotion) ---
+  stability: 0.35       # 0.0-1.0. LOW = emotional/varied, HIGH = flat/monotone
+  style: 0.45           # 0.0-1.0. Higher = more stylistic/emotional exaggeration
+  similarity_boost: 0.80
+  use_speaker_boost: true
   # --- audio post-processing (fixes "voice too hard / too low") ---
   loudnorm: true        # even, broadcast-style loudness (EBU R128)
   pitch: 1.0            # 1.0 = unchanged. 1.03 = slightly higher, 0.97 = lower.
