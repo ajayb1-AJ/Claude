@@ -4,6 +4,10 @@
 # `niche` below; no code changes needed.
 # ============================================================================
 
+# How many videos the daily run makes (main.py --daily). Override per-run with --count.
+daily:
+  count: 3
+
 channel:
   language: "Gujarati"
   language_code: "gu"

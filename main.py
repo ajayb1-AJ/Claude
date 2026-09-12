@@ -87,7 +87,8 @@ def main(argv: list[str] | None = None) -> int:
              "The used script is moved to stories/done/.",
     )
 
-    parser.add_argument("--count", type=int, default=1, help="How many videos (queue/auto only)")
+    parser.add_argument("--count", type=int, default=None,
+                        help="How many videos to make (default: daily.count from config, else 1)")
     parser.add_argument("--no-upload", action="store_true", help="Build only; skip YouTube upload")
     parser.add_argument("--title", default=None, help="Optional YouTube title (manual-script mode)")
     parser.add_argument("--config", default=None, help="Path to config.yaml")
@@ -112,31 +113,39 @@ def main(argv: list[str] | None = None) -> int:
 
     from src.pipeline import run_pipeline
 
-    # Daily mode: pull the next queued script, render, archive it. No API.
+    # Daily mode: make N videos from the next N queued scripts. No API.
     if args.daily:
+        import shutil, time as _t
         from src.script_generator import manual_script
         queue_dir = Path(__file__).parent / "stories" / "queue"
         done_dir = Path(__file__).parent / "stories" / "done"
         done_dir.mkdir(parents=True, exist_ok=True)
-        scripts = sorted(queue_dir.glob("*.txt")) if queue_dir.exists() else []
-        if not scripts:
-            print("Queue is empty (stories/queue/). Add scripts, or ask Claude for more.",
-                  file=sys.stderr)
-            return 2
-        nxt = scripts[0]
-        print(f"Daily: using next queued script -> {nxt.name} "
-              f"({len(scripts)} in queue)")
-        script = manual_script(nxt.read_text(encoding="utf-8"), cfg)
-        try:
-            run_pipeline(script.title, cfg, do_upload=do_upload, script=script)
-        except Exception as exc:
-            print(f"!! Failed on '{nxt.name}': {exc}", file=sys.stderr)
-            return 1
-        # Archive the used script so tomorrow takes the next one.
-        import shutil, time as _t
-        shutil.move(str(nxt), str(done_dir / f"{_t.strftime('%Y%m%d')}_{nxt.name}"))
-        print(f"\nDone. Archived {nxt.name}; {len(scripts)-1} left in queue.")
-        return 0
+        n_want = args.count or int(cfg.get("daily", "count", default=3))
+
+        made = failed = 0
+        for _ in range(n_want):
+            scripts = sorted(queue_dir.glob("*.txt")) if queue_dir.exists() else []
+            if not scripts:
+                print(f"Queue empty after {made} video(s). Add more scripts to "
+                      f"stories/queue/ (ask Claude).", file=sys.stderr)
+                break
+            nxt = scripts[0]
+            print(f"\n>>> Daily video {made + failed + 1}/{n_want}: {nxt.name} "
+                  f"({len(scripts)} in queue)")
+            try:
+                script = manual_script(nxt.read_text(encoding="utf-8"), cfg)
+                run_pipeline(script.title, cfg, do_upload=do_upload, script=script)
+                shutil.move(str(nxt), str(done_dir / f"{_t.strftime('%Y%m%d')}_{nxt.name}"))
+                made += 1
+            except Exception as exc:
+                failed += 1
+                print(f"!! Failed on '{nxt.name}': {exc}", file=sys.stderr)
+                # Move the bad script aside so it doesn't block tomorrow's run.
+                shutil.move(str(nxt), str(done_dir / f"FAILED_{_t.strftime('%Y%m%d')}_{nxt.name}"))
+
+        left = len(sorted(queue_dir.glob("*.txt"))) if queue_dir.exists() else 0
+        print(f"\nDone. {made} made, {failed} failed; {left} left in queue.")
+        return 1 if (made == 0) else 0
 
     # Manual-script mode: no Anthropic API used at all.
     if args.script_file:
@@ -151,11 +160,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"!! Failed: {exc}", file=sys.stderr)
             return 1
 
+    count = args.count or 1
     topics: list[str] = []
     if args.topic:
         topics = [args.topic]
     elif args.from_queue:
-        for _ in range(args.count):
+        for _ in range(count):
             t = _pop_queue()
             if t is None:
                 break
@@ -164,7 +174,7 @@ def main(argv: list[str] | None = None) -> int:
             print("Topic queue is empty (topics/topics.txt).", file=sys.stderr)
             return 1
     elif args.auto_topic:
-        topics = [_auto_topic(cfg) for _ in range(args.count)]
+        topics = [_auto_topic(cfg) for _ in range(count)]
 
     failures = 0
     for topic in topics:

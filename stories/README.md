@@ -7,12 +7,14 @@ Videos are made from ready-written Gujarati scripts. No Anthropic/LLM key needed
   the rest = the narration (first spoken line should be a strong hook).
 - `done/`  — scripts already used (moved here automatically, dated).
 
-## Make today's video (uses the NEXT script in queue/)
+## Make today's videos (default: 3 per day)
 ```powershell
-python main.py --daily
+python main.py --daily            # makes daily.count videos (config: 3)
+python main.py --daily --count 5  # override: make 5 this run
 ```
-It renders the alphabetically-first script in `queue/`, then moves it to `done/`.
-So tomorrow's run picks the next one automatically.
+It renders the next scripts in `queue/` (alphabetical order), each into its own
+dated folder under `output/`, then moves each used script to `done/`. Change the
+daily number in `config.yaml` under `daily: count:`.
 
 ## Run it automatically every day (Windows Task Scheduler)
 1. Open **Task Scheduler** → **Create Basic Task**.
