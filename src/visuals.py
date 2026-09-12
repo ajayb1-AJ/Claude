@@ -35,10 +35,13 @@ class SceneAsset:
     kind: str  # "image" | "video"
 
 
-def gather_scene_assets(queries: list[str], out_dir: Path, cfg: Config) -> list[SceneAsset]:
+def gather_scene_assets(
+    queries: list[str], out_dir: Path, cfg: Config, count: int | None = None
+) -> list[SceneAsset]:
     provider = cfg.get("visuals", "provider", default="pexels")
-    count = cfg.get("visuals", "images_per_video", default=8)
-    queries = _pad(queries or ["nature"], count)
+    if count is None:
+        count = int(cfg.get("visuals", "max_scenes", default=12))
+    queries = queries or ["cinematic nature"]
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if provider == "local":
@@ -52,128 +55,162 @@ def gather_scene_assets(queries: list[str], out_dir: Path, cfg: Config) -> list[
 
     video_ratio = float(cfg.get("visuals", "video_ratio", default=0.5))
     orientation = "portrait" if cfg.is_short else "landscape"
-    # Photo source order (fallback across providers).
-    photo_sources = [_pexels_photo, _pixabay_photo]
-    video_sources = [_pexels_video, _pixabay_video]
+    photo_sources = [_pexels_photos, _pixabay_photos]
+    video_sources = [_pexels_videos, _pixabay_videos]
     if provider == "pixabay":
         photo_sources.reverse()
         video_sources.reverse()
 
+    # Cache candidate URL lists per (query, kind) and track what we've used so
+    # no two scenes reuse the same clip/photo — even when a query repeats.
+    cache: dict[tuple[str, str], list[str]] = {}
+    used: set[str] = set()
+
+    def candidates(query: str, kind: str) -> list[str]:
+        key = (query, kind)
+        if key not in cache:
+            urls: list[str] = []
+            sources = video_sources if kind == "video" else photo_sources
+            for src in sources:
+                try:
+                    urls += src(query, orientation, cfg)
+                except Exception as exc:
+                    print(f"  ! {src.__name__} error for '{query}': {exc}")
+            # de-dupe preserving order
+            seen: set[str] = set()
+            cache[key] = [u for u in urls if not (u in seen or seen.add(u))]
+        return cache[key]
+
     assets: list[SceneAsset] = []
-    for i, query in enumerate(queries):
-        want_video = (i % max(1, round(1 / video_ratio))) == 0 if video_ratio > 0 else False
+    for i in range(count):
+        query = queries[i % len(queries)]
+        # Alternate video/photo scenes by the configured ratio.
+        want_video = video_ratio > 0 and (i % max(1, round(1 / video_ratio))) == 0
+        kinds = ["video", "image"] if want_video else ["image", "video"]
+
         asset = None
-        if want_video:
-            asset = _try_fetch(video_sources, query, orientation, out_dir, i, "video", cfg)
-        if asset is None:
-            asset = _try_fetch(photo_sources, query, orientation, out_dir, i, "image", cfg)
+        for kind in kinds:
+            url = _pick_unused(candidates(query, kind), used)
+            # If this query is exhausted, try any other query's pool for variety.
+            if not url:
+                for alt in queries:
+                    url = _pick_unused(candidates(alt, kind), used)
+                    if url:
+                        break
+            if not url:
+                continue
+            saved = _download(url, out_dir, i, kind)
+            if saved:
+                used.add(url)
+                asset = SceneAsset(saved, kind)
+                break
         if asset is None:
             asset = SceneAsset(_solid_color(i, out_dir), "image")
         assets.append(asset)
     return assets
 
 
-def _try_fetch(sources, query, orientation, out_dir, i, kind, cfg) -> SceneAsset | None:
-    ext = "mp4" if kind == "video" else "jpg"
-    dest = out_dir / f"scene_{i:02d}.{ext}"
-    for source in sources:
-        try:
-            url = source(query, orientation, cfg)
-        except Exception as exc:
-            print(f"  ! {source.__name__} error for '{query}': {exc}")
-            url = None
-        if not url:
-            continue
-        try:
-            resp = requests.get(url, timeout=120)
-            resp.raise_for_status()
-            dest.write_bytes(resp.content)
-            return SceneAsset(dest, kind)
-        except Exception as exc:
-            print(f"  ! download failed ({source.__name__}, '{query}'): {exc}")
+def _pick_unused(urls: list[str], used: set[str]) -> str | None:
+    for u in urls:
+        if u not in used:
+            return u
     return None
 
 
-# --- photo sources ---------------------------------------------------------
-def _pexels_photo(query: str, orientation: str, cfg: Config) -> str | None:
-    if not cfg.pexels_api_key:
+def _download(url: str, out_dir: Path, i: int, kind: str) -> Path | None:
+    ext = "mp4" if kind == "video" else "jpg"
+    dest = out_dir / f"scene_{i:02d}.{ext}"
+    try:
+        resp = requests.get(url, timeout=120)
+        resp.raise_for_status()
+        dest.write_bytes(resp.content)
+        return dest
+    except Exception as exc:
+        print(f"  ! download failed ({kind}): {exc}")
         return None
+
+
+# --- candidate lists (return MANY urls so scenes stay distinct) ------------
+def _pexels_photos(query: str, orientation: str, cfg: Config) -> list[str]:
+    if not cfg.pexels_api_key:
+        return []
     r = requests.get(
         _PEXELS_PHOTO,
         headers={"Authorization": cfg.pexels_api_key},
-        params={"query": query, "per_page": 1, "orientation": orientation},
+        params={"query": query, "per_page": 15, "orientation": orientation},
         timeout=30,
     )
     r.raise_for_status()
-    photos = r.json().get("photos", [])
-    if not photos:
-        return None
-    src = photos[0]["src"]
-    return src.get("large2x") or src.get("large") or src["original"]
+    out = []
+    for p in r.json().get("photos", []):
+        src = p.get("src", {})
+        u = src.get("large2x") or src.get("large") or src.get("original")
+        if u:
+            out.append(u)
+    return out
 
 
-def _pixabay_photo(query: str, orientation: str, cfg: Config) -> str | None:
+def _pixabay_photos(query: str, orientation: str, cfg: Config) -> list[str]:
     if not cfg.pixabay_api_key:
-        return None
+        return []
     r = requests.get(
         _PIXABAY_PHOTO,
         params={
             "key": cfg.pixabay_api_key, "q": query, "image_type": "photo",
             "orientation": "vertical" if orientation == "portrait" else "horizontal",
-            "safesearch": "true", "per_page": 3,
+            "safesearch": "true", "per_page": 20,
         },
         timeout=30,
     )
     r.raise_for_status()
-    hits = r.json().get("hits", [])
-    if not hits:
-        return None
-    return hits[0].get("largeImageURL") or hits[0].get("webformatURL")
+    out = []
+    for h in r.json().get("hits", []):
+        u = h.get("largeImageURL") or h.get("webformatURL")
+        if u:
+            out.append(u)
+    return out
 
 
-# --- video sources ---------------------------------------------------------
-def _pexels_video(query: str, orientation: str, cfg: Config) -> str | None:
+def _pexels_videos(query: str, orientation: str, cfg: Config) -> list[str]:
     if not cfg.pexels_api_key:
-        return None
+        return []
     r = requests.get(
         _PEXELS_VIDEO,
         headers={"Authorization": cfg.pexels_api_key},
-        params={"query": query, "per_page": 3, "orientation": orientation},
+        params={"query": query, "per_page": 10, "orientation": orientation},
         timeout=30,
     )
     r.raise_for_status()
-    videos = r.json().get("videos", [])
-    if not videos:
-        return None
-    # Choose an HD file no wider than 1920 (keeps download/encode reasonable).
-    files = sorted(
-        videos[0].get("video_files", []),
-        key=lambda f: (f.get("width") or 0),
-    )
-    best = None
-    for f in files:
-        if (f.get("width") or 0) <= 1920 and f.get("link"):
-            best = f["link"]
-    return best or (files[-1]["link"] if files else None)
+    out = []
+    for v in r.json().get("videos", []):
+        files = sorted(v.get("video_files", []), key=lambda f: (f.get("width") or 0))
+        best = None
+        for f in files:
+            if (f.get("width") or 0) <= 1920 and f.get("link"):
+                best = f["link"]
+        best = best or (files[-1]["link"] if files else None)
+        if best:
+            out.append(best)
+    return out
 
 
-def _pixabay_video(query: str, orientation: str, cfg: Config) -> str | None:
+def _pixabay_videos(query: str, orientation: str, cfg: Config) -> list[str]:
     if not cfg.pixabay_api_key:
-        return None
+        return []
     r = requests.get(
         _PIXABAY_VIDEO,
-        params={"key": cfg.pixabay_api_key, "q": query, "per_page": 3, "safesearch": "true"},
+        params={"key": cfg.pixabay_api_key, "q": query, "per_page": 10, "safesearch": "true"},
         timeout=30,
     )
     r.raise_for_status()
-    hits = r.json().get("hits", [])
-    if not hits:
-        return None
-    v = hits[0].get("videos", {})
-    for size in ("large", "medium", "small"):
-        if v.get(size, {}).get("url"):
-            return v[size]["url"]
-    return None
+    out = []
+    for h in r.json().get("hits", []):
+        v = h.get("videos", {})
+        for size in ("large", "medium", "small"):
+            if v.get(size, {}).get("url"):
+                out.append(v[size]["url"])
+                break
+    return out
 
 
 # --- local + fallback ------------------------------------------------------

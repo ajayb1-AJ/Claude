@@ -52,22 +52,30 @@ voiceover:
   loudnorm: true        # even, broadcast-style loudness (EBU R128)
   pitch: 1.0            # 1.0 = unchanged. 1.03 = slightly higher, 0.97 = lower.
 
-# Transition sound effects — a soft whoosh at every scene change.
+# Transition sound effects — a VARIETY of sounds at scene changes
+# (whoosh, swoosh, click, pop, ding, soft hit, riser), rotated so the same
+# sound is never used twice in a row. All synthesized by ffmpeg (no files).
 sfx:
   enabled: true
-  volume: 0.28          # relative to narration
+  variety: true         # rotate through the sound library (false = whoosh only)
+  volume: 0.30          # relative to narration
 
 visuals:
   # "pexels"  -> Pexels first, Pixabay fallback (recommended)
   # "pixabay" -> Pixabay first, Pexels fallback
   # "local"   -> use media from local_dir + clips_dir | "color" -> test slides
   provider: "pexels"
-  images_per_video: 8         # more scenes = faster pace = better retention
+  # PACE: a new scene every ~this many seconds. 3-4s keeps it lively (never static).
+  seconds_per_scene: 3.5
+  min_scenes: 6               # floor, even for very short narration
+  max_scenes: 45              # ceiling, to bound API calls / encode time
   video_ratio: 0.5            # fraction of scenes that are motion video clips
                               # (0 = photos only, 1 = video only)
   local_dir: "assets/images"  # your own photos (provider: local)
   clips_dir: "assets/clips"   # your own AI/motion-graphic clips (mp4/mov/webm)
-  ken_burns: true             # randomized slow zoom-in/zoom-out on photos
+  # Every scene gets a DISTINCT visual (no repeats) and a DIFFERENT motion
+  # effect from the previous one (see the effect list in assembler.py).
+  motion: true                # zoom-in/out, pans, drift — randomized, non-repeating
   transition_fade_sec: 0.5    # fade in at start / out at end
 
 subtitles:

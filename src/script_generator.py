@@ -10,8 +10,6 @@ import re
 from dataclasses import dataclass, asdict
 from typing import Any
 
-from anthropic import Anthropic
-
 from .config import Config
 
 
@@ -40,8 +38,11 @@ _PROMPT = """\
 - narration એ ફક્ત બોલવાનો ટેક્સ્ટ હોય — કોઈ stage directions, કૌંસ કે \
 "scene 1" જેવા લેબલ નહીં.
 - અંતે એક સ્પષ્ટ moral વાક્ય narration માં જ આવવું જોઈએ.
-- {scene_count} scenes આપો; દરેક scene એ ANGREJI (English) માં એક stock-image \
-search query હોય જે વાર્તાના એ ભાગને દ્રશ્ય રૂપે બતાવે. Visual theme: {visual_theme}
+- બરાબર {scene_count} scenes આપો; દરેક scene એ ANGREJI (English) માં એક \
+stock-image/video search query હોય જે વાર્તાના એ ભાગને દ્રશ્ય રૂપે બતાવે.
+- દરેક query એકબીજાથી અલગ (DISTINCT) અને ચોક્કસ (specific) હોય — કોઈ બે \
+scene એકસરખા ન હોય, જેથી વિડિયોમાં એક પણ દ્રશ્ય પુનરાવર્તિત ન થાય. \
+Visual theme: {visual_theme}
 - title: {title_style}
 
 ફક્ત નીચેના JSON format માં જ જવાબ આપો, બીજું કંઈ નહીં:
@@ -68,9 +69,29 @@ def _extract_json(text: str) -> dict[str, Any]:
     return json.loads(raw)
 
 
+def _target_scene_count(cfg: Config) -> int:
+    """How many distinct visual beats to ask for, from the target duration
+    and the desired pace (scene every ~seconds_per_scene)."""
+    duration = cfg.get("channel", "target_duration_sec", default=90)
+    sps = float(cfg.get("visuals", "seconds_per_scene", default=3.5))
+    lo = int(cfg.get("visuals", "min_scenes", default=6))
+    hi = int(cfg.get("visuals", "max_scenes", default=45))
+    return max(lo, min(hi, round(duration / max(1.5, sps))))
+
+
+def scene_count_for_duration(duration_sec: float, cfg: Config) -> int:
+    """Actual number of scenes for the real narration duration."""
+    sps = float(cfg.get("visuals", "seconds_per_scene", default=3.5))
+    lo = int(cfg.get("visuals", "min_scenes", default=6))
+    hi = int(cfg.get("visuals", "max_scenes", default=45))
+    return max(lo, min(hi, round(max(3.0, duration_sec) / max(1.5, sps))))
+
+
 def generate_script(topic: str, cfg: Config) -> VideoScript:
     if not cfg.anthropic_api_key:
         raise RuntimeError("ANTHROPIC_API_KEY is not set (see .env.example)")
+
+    from anthropic import Anthropic
 
     client = Anthropic(api_key=cfg.anthropic_api_key)
 
@@ -78,7 +99,7 @@ def generate_script(topic: str, cfg: Config) -> VideoScript:
         topic=topic,
         max_words=cfg.get("script", "max_words", default=210),
         duration=cfg.get("channel", "target_duration_sec", default=90),
-        scene_count=cfg.get("visuals", "images_per_video", default=6),
+        scene_count=_target_scene_count(cfg),
         visual_theme=cfg.get("niche", "visual_theme", default=""),
         title_style=cfg.get("niche", "title_style", default="short Gujarati title"),
     )

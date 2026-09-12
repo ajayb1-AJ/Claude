@@ -17,6 +17,7 @@ import math
 import random
 import shutil
 import subprocess
+from collections import Counter
 from pathlib import Path
 
 from .config import Config
@@ -63,12 +64,15 @@ def build_video(
     durations = [per] * n
     durations[-1] = total - per * (n - 1)  # last absorbs rounding
 
+    # Non-repeating motion effect per scene (never the same as the previous).
+    effects = _effect_sequence(n)
+
     # 1) Build normalized per-scene clips (video only) --------------------
     scene_files: list[Path] = []
     for i, (asset, dur) in enumerate(zip(assets, durations)):
         scene = work / f"scene_{i:02d}.mp4"
         first, last = (i == 0), (i == n - 1)
-        _build_scene(asset, scene, dur, w, h, first, last, cfg)
+        _build_scene(asset, scene, dur, w, h, first, last, effects[i], cfg)
         scene_files.append(scene)
 
     silent = work / "video_silent.mp4"
@@ -99,8 +103,27 @@ def build_video(
 # --------------------------------------------------------------------------
 # Scene clips
 # --------------------------------------------------------------------------
+# A varied library of motion effects (not just zoom in/out).
+MOTION_EFFECTS = [
+    "zoom_in", "zoom_out", "pan_left", "pan_right", "pan_up", "pan_down",
+    "zoom_in_tl", "zoom_in_br", "zoom_out_tr", "zoom_out_bl",
+]
+
+
+def _effect_sequence(n: int) -> list[str]:
+    """A motion effect per scene, never repeating the previous one."""
+    seq: list[str] = []
+    prev = None
+    for _ in range(n):
+        choices = [e for e in MOTION_EFFECTS if e != prev]
+        pick = random.choice(choices)
+        seq.append(pick)
+        prev = pick
+    return seq
+
+
 def _build_scene(asset: SceneAsset, dest: Path, dur: float, w: int, h: int,
-                 first: bool, last: bool, cfg: Config) -> None:
+                 first: bool, last: bool, effect: str, cfg: Config) -> None:
     fade = float(cfg.get("visuals", "transition_fade_sec", default=0.5))
     tail = _fade_filter(dur, fade, first, last)
 
@@ -116,7 +139,7 @@ def _build_scene(asset: SceneAsset, dest: Path, dur: float, w: int, h: int,
         return
 
     if asset.kind == "video":
-        # Scale/crop to fill, loop if shorter than the scene, trim to dur.
+        # Video already moves; scale/crop to fill, loop if short, trim to dur.
         chain = (
             f"scale={w}:{h}:force_original_aspect_ratio=increase,"
             f"crop={w}:{h},setsar=1,fps={FPS}"
@@ -130,10 +153,10 @@ def _build_scene(asset: SceneAsset, dest: Path, dur: float, w: int, h: int,
         ])
         return
 
-    # Image -> Ken Burns (randomized zoom-in / zoom-out).
+    # Image -> apply the chosen motion effect.
     frames = int(math.ceil(dur * FPS))
-    if cfg.get("visuals", "ken_burns", default=True):
-        chain = _ken_burns(w, h, frames)
+    if cfg.get("visuals", "motion", default=True):
+        chain = _motion_chain(effect, w, h, frames)
     else:
         chain = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}"
     if tail:
@@ -145,19 +168,38 @@ def _build_scene(asset: SceneAsset, dest: Path, dur: float, w: int, h: int,
     ])
 
 
-def _ken_burns(w: int, h: int, frames: int) -> str:
-    zoom_in = random.random() < 0.5
-    if zoom_in:
-        z = "min(zoom+0.0007,1.18)"
-    else:
-        z = "if(eq(on,0),1.18,max(zoom-0.0007,1.0))"
-    # Slight random pan target.
-    xs = random.choice(["iw/2-(iw/zoom/2)", "0", "iw-(iw/zoom)"])
-    ys = random.choice(["ih/2-(ih/zoom/2)", "0", "ih-(ih/zoom)"])
-    return (
+def _motion_chain(effect: str, w: int, h: int, frames: int) -> str:
+    """Build a zoompan filter for a named motion effect. The source is scaled
+    up 2x first so the pan/zoom stays sharp."""
+    prefix = (
         f"scale={w*2}:{h*2}:force_original_aspect_ratio=increase,"
         f"crop={w*2}:{h*2},"
-        f"zoompan=z='{z}':d={frames}:x='{xs}':y='{ys}':s={w}x{h}:fps={FPS}"
+    )
+    cx, cy = "iw/2-(iw/zoom/2)", "ih/2-(ih/zoom/2)"
+    step, zmax = 0.0009, 1.20
+    zin = f"min(zoom+{step},{zmax})"
+    zout = f"if(eq(on,0),{zmax},max(zoom-{step},1.0))"
+    zc = "1.12"  # constant zoom for pans
+    px_r = f"(iw-iw/zoom)*(on/{frames})"   # left -> right
+    px_l = f"(iw-iw/zoom)*(1-on/{frames})" # right -> left
+    py_d = f"(ih-ih/zoom)*(on/{frames})"   # top -> bottom
+    py_u = f"(ih-ih/zoom)*(1-on/{frames})" # bottom -> top
+
+    table = {
+        "zoom_in":    (zin, cx, cy),
+        "zoom_out":   (zout, cx, cy),
+        "zoom_in_tl": (zin, "0", "0"),
+        "zoom_in_br": (zin, "iw-iw/zoom", "ih-ih/zoom"),
+        "zoom_out_tr":(zout, "iw-iw/zoom", "0"),
+        "zoom_out_bl":(zout, "0", "ih-ih/zoom"),
+        "pan_left":   (zc, px_l, cy),
+        "pan_right":  (zc, px_r, cy),
+        "pan_up":     (zc, cx, py_u),
+        "pan_down":   (zc, cx, py_d),
+    }
+    z, x, y = table.get(effect, (zin, cx, cy))
+    return (
+        f"{prefix}zoompan=z='{z}':d={frames}:x='{x}':y='{y}':s={w}x{h}:fps={FPS}"
     )
 
 
@@ -223,37 +265,96 @@ def _add_sfx(audio: Path, cut_times: list[float], work: Path, cfg: Config) -> Pa
     if not cfg.get("sfx", "enabled", default=True) or not cut_times:
         return audio
     try:
-        whoosh = _make_whoosh(work, cfg)
-        vol = float(cfg.get("sfx", "volume", default=0.28))
+        library = _make_sfx_library(work)
+        variety = cfg.get("sfx", "variety", default=True)
         k = len(cut_times)
-        split = f"[1:a]volume={vol},asplit={k}" + "".join(f"[s{i}]" for i in range(k)) + ";"
-        delays = "".join(
-            f"[s{i}]adelay={int(t*1000)}|{int(t*1000)}[d{i}];" for i, t in enumerate(cut_times)
-        )
-        mix_inputs = "[0:a]" + "".join(f"[d{i}]" for i in range(k))
-        graph = split + delays + f"{mix_inputs}amix=inputs={k+1}:normalize=0[a]"
+        # Choose a sound per cut (non-repeating). Whoosh-only if variety off.
+        if variety:
+            choices = _sfx_sequence(k, len(library))
+        else:
+            choices = [0] * k
+
+        vol = float(cfg.get("sfx", "volume", default=0.30))
+        used_libs = sorted(set(choices))
+        # ffmpeg inputs: 0 = narration, then one per used library sound.
+        inputs = ["-i", str(audio)]
+        lib_input = {}
+        for pos, m in enumerate(used_libs):
+            inputs += ["-i", str(library[m])]
+            lib_input[m] = pos + 1
+
+        usage = Counter(choices)
+        graph = ""
+        # Split each used sound into as many copies as it's used, at target vol.
+        for m in used_libs:
+            n = usage[m]
+            base = f"[{lib_input[m]}:a]volume={vol}"
+            if n == 1:
+                graph += f"{base}[m{m}_0];"
+            else:
+                graph += base + f",asplit={n}" + "".join(f"[m{m}_{r}]" for r in range(n)) + ";"
+        # Delay each copy to its cut time.
+        counters: dict[int, int] = {m: 0 for m in used_libs}
+        delayed = []
+        for j, t in enumerate(cut_times):
+            m = choices[j]
+            r = counters[m]; counters[m] += 1
+            ms = int(t * 1000)
+            graph += f"[m{m}_{r}]adelay={ms}|{ms}[c{j}];"
+            delayed.append(f"[c{j}]")
+        graph += "[0:a]" + "".join(delayed) + f"amix=inputs={len(delayed)+1}:normalize=0[a]"
+
         out = work / "narration_sfx.wav"
-        _run([
-            "ffmpeg", "-y", "-i", str(audio), "-i", str(whoosh),
-            "-filter_complex", graph, "-map", "[a]", str(out),
-        ])
+        _run(["ffmpeg", "-y", *inputs, "-filter_complex", graph, "-map", "[a]", str(out)])
         return out
     except Exception as exc:
         print(f"  ! SFX stage skipped ({exc}).")
         return audio
 
 
-def _make_whoosh(work: Path, cfg: Config) -> Path:
-    """Generate a soft transition whoosh with ffmpeg (no asset file needed)."""
-    out = work / "whoosh.wav"
-    _run([
-        "ffmpeg", "-y", "-f", "lavfi",
-        "-i", "anoisesrc=d=0.35:c=pink:a=0.5",
-        "-af", "highpass=f=250,lowpass=f=5000,"
-               "afade=t=in:st=0:d=0.05,afade=t=out:st=0.12:d=0.23",
-        str(out),
-    ])
-    return out
+def _sfx_sequence(k: int, m: int) -> list[int]:
+    """Pick a sound index per cut, never the same as the previous cut."""
+    seq: list[int] = []
+    prev = None
+    for _ in range(k):
+        opts = [i for i in range(m) if i != prev] or list(range(m))
+        pick = random.choice(opts)
+        seq.append(pick)
+        prev = pick
+    return seq
+
+
+def _make_sfx_library(work: Path) -> list[Path]:
+    """Synthesize a variety of transition sounds with ffmpeg (no asset files).
+
+    Order matters: index 0 is the whoosh (used when variety is off)."""
+    sr = 44100
+    specs = [
+        # (name, lavfi source, audio filter)
+        ("whoosh", f"anoisesrc=d=0.35:c=pink:a=0.6:r={sr}",
+         "highpass=f=250,lowpass=f=5000,afade=t=in:st=0:d=0.05,afade=t=out:st=0.12:d=0.23"),
+        ("swoosh", f"anoisesrc=d=0.45:c=white:a=0.5:r={sr}",
+         "highpass=f=600,lowpass=f=9000,afade=t=in:st=0:d=0.08,afade=t=out:st=0.15:d=0.3"),
+        ("click", f"sine=frequency=1400:duration=0.05:sample_rate={sr}",
+         "afade=t=out:st=0.01:d=0.04,volume=0.9"),
+        ("pop", f"sine=frequency=520:duration=0.08:sample_rate={sr}",
+         "afade=t=out:st=0.02:d=0.06,volume=0.9"),
+        ("ding", f"sine=frequency=1568:duration=0.30:sample_rate={sr}",
+         "afade=t=out:st=0.05:d=0.25,volume=0.7"),
+        ("hit", f"sine=frequency=120:duration=0.18:sample_rate={sr}",
+         "afade=t=out:st=0.03:d=0.15,volume=1.0"),
+        ("riser", f"anoisesrc=d=0.5:c=brown:a=0.5:r={sr}",
+         "highpass=f=200,lowpass=f=6000,afade=t=in:st=0:d=0.42,afade=t=out:st=0.44:d=0.06"),
+    ]
+    paths: list[Path] = []
+    for name, src, af in specs:
+        out = work / f"sfx_{name}.wav"
+        _run([
+            "ffmpeg", "-y", "-f", "lavfi", "-i", src,
+            "-af", af, "-ac", "1", "-ar", str(sr), str(out),
+        ])
+        paths.append(out)
+    return paths
 
 
 def _add_music(audio: Path, work: Path, cfg: Config) -> Path:

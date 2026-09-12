@@ -140,13 +140,19 @@ output/                # generated videos (git-ignored)
 
 Built for high average-view-duration (the goal: 90–95% retention):
 
+- **Fast pace, never static** — a new scene every ~3.5s
+  (`visuals.seconds_per_scene`); scene count follows the real narration length.
+- **No repeated scenes** — every scene downloads a *distinct* photo/clip
+  (candidates are pulled in bulk and de-duplicated across the whole video).
+- **Varied motion (not just zoom)** — 10 effects (zoom-in/out, pans in every
+  direction, corner zooms) chosen so the same effect never runs back-to-back.
 - **Photos + video clips** — each scene is a Pexels/Pixabay photo *or* stock
-  video; mix controlled by `visuals.video_ratio`. Motion holds attention.
+  video; mix controlled by `visuals.video_ratio`.
 - **Your own clips** — drop AI-generated or motion-graphic clips into
   `assets/clips/` and set `visuals.provider: local`.
-- **Motion on every scene** — randomized Ken Burns zoom-in/zoom-out on photos.
-- **Transition SFX** — a soft whoosh is auto-generated (no files needed) and
-  mixed at every scene change (`sfx.enabled`).
+- **Varied transition SFX** — a library of 7 sounds (whoosh, swoosh, click,
+  pop, ding, hit, riser) is auto-synthesized (no files needed) and rotated so
+  the same sound never repeats consecutively (`sfx.variety`).
 - **Ducked background music** — sidechain compression lowers music under the
   voice automatically (`music.enabled` + a royalty-free track in `assets/music/`).
 - **Loudness-normalized voice** — even, broadcast-style level so the narration
