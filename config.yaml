@@ -39,9 +39,9 @@ voiceover:
   provider: "elevenlabs"
   # eleven_multilingual_v2 / eleven_turbo_v2_5 both support Gujarati.
   model_id: "eleven_multilingual_v2"
-  # Fallback voice if ELEVENLABS_VOICE_ID is not set in .env.
-  # (This is ElevenLabs' "Rachel" — replace with a voice you've tested on Gujarati.)
-  default_voice_id: "21m00Tcm4TlvDq8ikWAM"
+  # Default voice = "Aj Katihyawadi" (your custom Gujarati voice).
+  # Overridable per-run by setting ELEVENLABS_VOICE_ID in .env.
+  default_voice_id: "aGiqwq7BkeMTuW3338ZJ"
   stability: 0.5
   similarity_boost: 0.75
 
