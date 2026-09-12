@@ -97,8 +97,9 @@ def main(live: bool = False) -> int:
     eleven_key = os.getenv("ELEVENLABS_API_KEY", "").strip()
     check(
         anthropic_key.startswith("sk-ant-"),
-        "ANTHROPIC_API_KEY is set",
-        "Add ANTHROPIC_API_KEY=sk-ant-... to .env",
+        "ANTHROPIC_API_KEY is set (only needed for auto script generation)",
+        "Not required if you use manual scripts: main.py --script-file story.txt",
+        warn_only=True,
     )
     check(
         eleven_key.startswith("sk_") and len(eleven_key) > 20,

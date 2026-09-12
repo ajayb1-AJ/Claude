@@ -88,12 +88,24 @@ The finished video and all intermediate files land in `output/<timestamp>-<slug>
 ## Usage
 
 ```bash
-python main.py --topic "..."            # one explicit topic
+python main.py --topic "..."            # one explicit topic (Claude writes the script)
 python main.py --from-queue             # next topic from topics/topics.txt
 python main.py --from-queue --count 3   # three from the queue
 python main.py --auto-topic             # let Claude invent a topic
 python main.py --topic "..." --no-upload
+
+# No Anthropic key? Write the story yourself and skip the LLM entirely:
+python main.py --script-file my_story.txt --no-upload
+python main.py --script-file my_story.txt --title "મારી વાર્તા"
 ```
+
+### Two ways to get the script
+- **Auto (default):** Claude writes it from a topic — needs a funded
+  `ANTHROPIC_API_KEY`.
+- **Manual (`--script-file`):** you supply the Gujarati narration in a `.txt`
+  file (write it yourself, or generate it free in the Claude.ai chat and paste
+  it) — **no Anthropic key used.** The first line becomes the title; visuals,
+  voice, captions, and upload all work the same.
 
 ## Run it daily (cron)
 

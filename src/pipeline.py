@@ -19,7 +19,10 @@ def _slug(text: str) -> str:
     return (ascii_part or "video")[:40]
 
 
-def run_pipeline(topic: str, cfg: Config, do_upload: bool | None = None) -> dict:
+def run_pipeline(topic: str, cfg: Config, do_upload: bool | None = None,
+                 script=None) -> dict:
+    """Run the full pipeline. If `script` (a VideoScript) is provided, the LLM
+    step is skipped entirely — used by manual-script mode (no Anthropic key)."""
     if do_upload is None:
         do_upload = cfg.get("upload", "enabled", default=False)
 
@@ -29,8 +32,11 @@ def run_pipeline(topic: str, cfg: Config, do_upload: bool | None = None) -> dict
     print(f"\n=== Topic: {topic}\n    Output: {job_dir}")
 
     # 1. Script -------------------------------------------------------------
-    print("[1/5] Generating Gujarati script...")
-    script = generate_script(topic, cfg)
+    if script is None:
+        print("[1/5] Generating Gujarati script (Claude)...")
+        script = generate_script(topic, cfg)
+    else:
+        print("[1/5] Using your manual script (no Anthropic API).")
     (job_dir / "script.json").write_text(script.to_json(), encoding="utf-8")
     print(f"      Title: {script.title}")
 

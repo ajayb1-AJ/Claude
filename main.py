@@ -77,9 +77,14 @@ def main(argv: list[str] | None = None) -> int:
         "--list-voices", nargs="?", const="", metavar="NAME",
         help="List your ElevenLabs voices (optionally filter by name) and exit",
     )
+    src.add_argument(
+        "--script-file", metavar="PATH",
+        help="Use your OWN Gujarati narration from a text file (NO Anthropic key needed)",
+    )
 
     parser.add_argument("--count", type=int, default=1, help="How many videos (queue/auto only)")
     parser.add_argument("--no-upload", action="store_true", help="Build only; skip YouTube upload")
+    parser.add_argument("--title", default=None, help="Optional YouTube title (manual-script mode)")
     parser.add_argument("--config", default=None, help="Path to config.yaml")
     args = parser.parse_args(argv)
 
@@ -100,6 +105,21 @@ def main(argv: list[str] | None = None) -> int:
 
     do_upload = None if not args.no_upload else False
 
+    from src.pipeline import run_pipeline
+
+    # Manual-script mode: no Anthropic API used at all.
+    if args.script_file:
+        from src.script_generator import manual_script
+        text = Path(args.script_file).read_text(encoding="utf-8")
+        script = manual_script(text, cfg, title=args.title)
+        try:
+            run_pipeline(script.title, cfg, do_upload=do_upload, script=script)
+            print("\nDone. 1/1 succeeded.")
+            return 0
+        except Exception as exc:
+            print(f"!! Failed: {exc}", file=sys.stderr)
+            return 1
+
     topics: list[str] = []
     if args.topic:
         topics = [args.topic]
@@ -114,8 +134,6 @@ def main(argv: list[str] | None = None) -> int:
             return 1
     elif args.auto_topic:
         topics = [_auto_topic(cfg) for _ in range(args.count)]
-
-    from src.pipeline import run_pipeline
 
     failures = 0
     for topic in topics:

@@ -69,6 +69,51 @@ def _extract_json(text: str) -> dict[str, Any]:
     return json.loads(raw)
 
 
+def _scene_queries_from_theme(cfg: Config, count: int) -> list[str]:
+    """Build English image-search queries WITHOUT an LLM, from the niche's
+    visual theme. Used by manual-script mode."""
+    theme = cfg.get("niche", "visual_theme", default="cinematic nature")
+    base = [t.strip() for t in theme.replace(";", ",").split(",") if t.strip()]
+    if not base:
+        base = ["cinematic indian village", "temple", "nature", "elderly wisdom"]
+    modifiers = ["", "close up", "wide shot", "golden hour", "cinematic",
+                 "morning light", "dramatic", "aerial view", "detail"]
+    queries: list[str] = []
+    i = 0
+    while len(queries) < count:
+        b = base[i % len(base)]
+        m = modifiers[(i // len(base)) % len(modifiers)]
+        queries.append(f"{b} {m}".strip())
+        i += 1
+    return queries
+
+
+def manual_script(narration: str, cfg: Config, title: str | None = None) -> VideoScript:
+    """Build a VideoScript from narration text the user wrote — no LLM/API call.
+
+    Title/tags/scene-queries are derived locally so the rest of the pipeline
+    (voice, visuals, assembly, upload) runs exactly the same."""
+    narration = narration.strip()
+    if not narration:
+        raise ValueError("Manual script is empty.")
+    if not title:
+        first_line = narration.splitlines()[0].strip()
+        title = (first_line[:70] or "ગુજરાતી વાર્તા")
+    footer = cfg.get("upload", "description_footer", default="")
+    description = (title + ("\n" + footer if footer else "")).strip()
+    from_dur = cfg.get("channel", "target_duration_sec", default=90)
+    scenes = _scene_queries_from_theme(cfg, _target_scene_count(cfg))
+    return VideoScript(
+        topic=title,
+        title=title,
+        narration=narration,
+        description=description,
+        tags=_dedupe(list(cfg.get("upload", "default_tags", default=[]))),
+        scenes=scenes,
+        moral="",
+    )
+
+
 def _target_scene_count(cfg: Config) -> int:
     """How many distinct visual beats to ask for, from the target duration
     and the desired pace (scene every ~seconds_per_scene)."""
