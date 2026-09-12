@@ -19,13 +19,17 @@ channel:
 niche:
   name: "Gujarati moral & motivational stories"
   system_prompt: |
-    તમે એક કુશળ ગુજરાતી વાર્તાકાર છો જે YouTube માટે ટૂંકી પ્રેરક
-    અને બોધદાયક વાર્તાઓ લખો છો. તમારી વાર્તાઓ:
+    તમે એક કુશળ ગુજરાતી વાર્તાકાર અને retention-expert છો જે YouTube માટે
+    ટૂંકી પ્રેરક અને બોધદાયક વાર્તાઓ લખો છો. લક્ષ્ય: દર્શક 90-95% વિડિયો જુએ.
+    તમારી વાર્તાઓ:
     - શુદ્ધ, સરળ અને રોજિંદી ગુજરાતી ભાષામાં હોય (કઠિન સંસ્કૃત શબ્દો ટાળો)
-    - પહેલી 5 સેકન્ડમાં દર્શકને પકડી રાખે એવો hook હોય
-    - એક સ્પષ્ટ નૈતિક બોધ (moral) સાથે અંત આવે
+    - પહેલી 3 સેકન્ડમાં જ એક જોરદાર hook હોય જે એક પ્રશ્ન કે તણાવ ઊભો કરે
+    - ટૂંકા, ઝડપી વાક્યો હોય; વચ્ચે એક ટ્વિસ્ટ કે વળાંક આવે (open loop)
+    - અંત પહેલાં ઉત્સુકતા જાળવી રાખે, પછી સંતોષકારક moral સાથે અંત આવે
+    - છેલ્લે એક નાનું call-to-action હોય (subscribe/comment)
     - કુટુંબ સાથે જોઈ શકાય એવી, સકારાત્મક અને સન્માનજનક હોય
     - કોઈ ચોક્કસ ધર્મ, જાતિ કે વ્યક્તિની ટીકા ન કરે
+    - ફક્ત મૌલિક (original) વાર્તા હોય — કોઈ કૉપીરાઇટ સામગ્રી નકલ ન કરે
   # Used to steer image search queries (in English, since stock APIs index in English).
   visual_theme: "warm cinematic indian village, temple, nature, elderly wisdom, soft light"
   title_style: "curiosity-driven Gujarati title with an emoji, under 70 characters"
@@ -44,16 +48,27 @@ voiceover:
   default_voice_id: "aGiqwq7BkeMTuW3338ZJ"
   stability: 0.5
   similarity_boost: 0.75
+  # --- audio post-processing (fixes "voice too hard / too low") ---
+  loudnorm: true        # even, broadcast-style loudness (EBU R128)
+  pitch: 1.0            # 1.0 = unchanged. 1.03 = slightly higher, 0.97 = lower.
+
+# Transition sound effects — a soft whoosh at every scene change.
+sfx:
+  enabled: true
+  volume: 0.28          # relative to narration
 
 visuals:
   # "pexels"  -> Pexels first, Pixabay fallback (recommended)
   # "pixabay" -> Pixabay first, Pexels fallback
-  # "local"   -> use images from local_dir | "color" -> solid slides (testing)
+  # "local"   -> use media from local_dir + clips_dir | "color" -> test slides
   provider: "pexels"
-  images_per_video: 6         # a new image every ~duration/6 seconds
-  # If provider == "local", pull images from this dir instead of Pexels.
-  local_dir: "assets/images"
-  ken_burns: true             # subtle slow zoom on each still
+  images_per_video: 8         # more scenes = faster pace = better retention
+  video_ratio: 0.5            # fraction of scenes that are motion video clips
+                              # (0 = photos only, 1 = video only)
+  local_dir: "assets/images"  # your own photos (provider: local)
+  clips_dir: "assets/clips"   # your own AI/motion-graphic clips (mp4/mov/webm)
+  ken_burns: true             # randomized slow zoom-in/zoom-out on photos
+  transition_fade_sec: 0.5    # fade in at start / out at end
 
 subtitles:
   enabled: true

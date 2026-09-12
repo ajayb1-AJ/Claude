@@ -10,7 +10,7 @@ from pathlib import Path
 from .assembler import build_video
 from .config import Config
 from .script_generator import generate_script
-from .visuals import gather_images
+from .visuals import gather_scene_assets
 from .voiceover import synthesize
 
 
@@ -40,15 +40,16 @@ def run_pipeline(topic: str, cfg: Config, do_upload: bool | None = None) -> dict
     print(f"      Duration: {voice.duration_sec:.1f}s")
 
     # 3. Visuals ------------------------------------------------------------
-    print("[3/5] Gathering visuals...")
-    images = gather_images(script.scenes, job_dir / "images", cfg)
-    print(f"      {len(images)} scene image(s)")
+    print("[3/5] Gathering visuals (photos + video clips)...")
+    assets = gather_scene_assets(script.scenes, job_dir / "images", cfg)
+    kinds = ", ".join(f"{a.kind}" for a in assets)
+    print(f"      {len(assets)} scenes: {kinds}")
 
     # 4. Assemble -----------------------------------------------------------
-    print("[4/5] Assembling video (ffmpeg)...")
+    print("[4/5] Assembling video (ffmpeg: motion, SFX, music, captions)...")
     out_path = job_dir / "final.mp4"
     build_video(
-        images=images,
+        images=assets,
         audio_path=voice.audio_path,
         srt_path=voice.srt_path,
         duration_sec=voice.duration_sec or cfg.get("channel", "target_duration_sec", default=90),

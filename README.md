@@ -136,6 +136,40 @@ output/                # generated videos (git-ignored)
 
 ---
 
+## Professional / engagement features
+
+Built for high average-view-duration (the goal: 90–95% retention):
+
+- **Photos + video clips** — each scene is a Pexels/Pixabay photo *or* stock
+  video; mix controlled by `visuals.video_ratio`. Motion holds attention.
+- **Your own clips** — drop AI-generated or motion-graphic clips into
+  `assets/clips/` and set `visuals.provider: local`.
+- **Motion on every scene** — randomized Ken Burns zoom-in/zoom-out on photos.
+- **Transition SFX** — a soft whoosh is auto-generated (no files needed) and
+  mixed at every scene change (`sfx.enabled`).
+- **Ducked background music** — sidechain compression lowers music under the
+  voice automatically (`music.enabled` + a royalty-free track in `assets/music/`).
+- **Loudness-normalized voice** — even, broadcast-style level so the narration
+  is never too loud or too quiet (`voiceover.loudnorm`). Tune pitch with
+  `voiceover.pitch` (e.g. `1.03` slightly higher, `0.97` lower).
+- **Retention-tuned script** — 3-second hook, mid-story twist, payoff + CTA.
+- **Bold Gujarati captions** — large, outlined, readable on any background.
+
+Pacing/quality knobs live in `config.yaml` under `visuals`, `sfx`, `music`,
+and `voiceover`.
+
+## ⚖️ Copyright — important
+
+This tool uses **only** free/licensed media (Pexels, Pixabay — both CC0-style)
+and your own original scripts and clips. It deliberately does **not** download
+copyrighted content from other creators/videos.
+
+There is **no "safe" duration** for copyrighted material — a 3-second clip can
+still get a Content ID claim or a copyright strike, and 3 strikes deletes a
+channel. "Fair use / fair dealing" is a legal defense decided case-by-case, not
+a length rule. Keep everything original or properly licensed and the channel
+stays safe. Music must be royalty-free / licensed too.
+
 ## Responsible use
 
 - Keep content original, respectful, and non-defamatory (the script prompt

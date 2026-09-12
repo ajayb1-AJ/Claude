@@ -7,6 +7,10 @@ youtube_token.json
 # Generated media
 output/
 assets/images/
+assets/clips/*.mp4
+assets/clips/*.mov
+assets/clips/*.webm
+assets/clips/*.mkv
 assets/music/*.mp3
 assets/fonts/*.ttf
 assets/fonts/*.otf
