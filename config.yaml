@@ -110,8 +110,8 @@ music:
   volume: 0.08                # ducked well under the narration
 
 upload:
-  enabled: true               # you chose full auto-upload
-  privacy: "private"          # START on "private" — flip to "public" once you trust output
+  enabled: false              # NO auto-posting — you upload videos to YouTube yourself
+  privacy: "private"          # (only used if you ever set enabled: true)
   category_id: "22"           # 22 = People & Blogs; 24 = Entertainment
   made_for_kids: false
   # Appended to every video's description.
