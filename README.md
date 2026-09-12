@@ -42,7 +42,10 @@ brew install ffmpeg          # macOS   (Ubuntu: sudo apt-get install ffmpeg)
 # 3. Configure secrets
 cp .env.example .env         # then fill in the keys
 
-# 4. Build ONE video WITHOUT uploading (always review first!)
+# 4. Verify everything is set up correctly
+python check_setup.py
+
+# 5. Build ONE video WITHOUT uploading (always review first!)
 python main.py --topic "સાચી મહેનતનું ફળ" --no-upload
 
 # 5. Once happy, let it upload (privacy defaults to "private" in config.yaml)
