@@ -19,6 +19,20 @@ def _slug(text: str) -> str:
     return (ascii_part or "video")[:40]
 
 
+def _dated_dir(cfg: Config) -> Path:
+    """A folder named by today's date (YYYY-MM-DD). If more than one video is
+    made the same day, add -2, -3, ... so nothing is overwritten."""
+    date = time.strftime("%Y-%m-%d")
+    base = cfg.path("output", date)
+    job = base
+    n = 2
+    while job.exists():
+        job = cfg.path("output", f"{date}-{n}")
+        n += 1
+    job.mkdir(parents=True, exist_ok=True)
+    return job
+
+
 def run_pipeline(topic: str, cfg: Config, do_upload: bool | None = None,
                  script=None) -> dict:
     """Run the full pipeline. If `script` (a VideoScript) is provided, the LLM
@@ -26,9 +40,7 @@ def run_pipeline(topic: str, cfg: Config, do_upload: bool | None = None,
     if do_upload is None:
         do_upload = cfg.get("upload", "enabled", default=False)
 
-    stamp = time.strftime("%Y%m%d-%H%M%S")
-    job_dir = cfg.path("output", f"{stamp}-{_slug(topic)}")
-    job_dir.mkdir(parents=True, exist_ok=True)
+    job_dir = _dated_dir(cfg)
     print(f"\n=== Topic: {topic}\n    Output: {job_dir}")
 
     # 1. Script -------------------------------------------------------------
@@ -81,6 +93,10 @@ def run_pipeline(topic: str, cfg: Config, do_upload: bool | None = None,
     )
     print(f"      Wrote {out_path}")
 
+    # Write a copy-paste-ready title / description / hashtags file next to the
+    # video, so everything for uploading lives in the dated folder.
+    _write_upload_details(job_dir, script, cfg)
+
     result = {
         "topic": topic,
         "title": script.title,
@@ -105,3 +121,48 @@ def run_pipeline(topic: str, cfg: Config, do_upload: bool | None = None,
         json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     return result
+
+
+def _hashtags(tags: list[str]) -> list[str]:
+    """Turn tags into #hashtags and add standard Shorts/Reels tags."""
+    out: list[str] = []
+    seen: set[str] = set()
+    standard = ["shorts", "reels", "ગુજરાતી", "gujarati", "motivation",
+                "moralstory", "બોધકથા", "viral"]
+    for t in list(tags) + standard:
+        tag = "#" + re.sub(r"\s+", "", t.strip().lstrip("#"))
+        key = tag.lower()
+        if len(tag) > 1 and key not in seen:
+            seen.add(key)
+            out.append(tag)
+    return out[:20]  # YouTube ignores more than ~15; keep it tidy
+
+
+def _write_upload_details(job_dir: Path, script, cfg: Config) -> None:
+    """Write a copy-paste-ready title/description/hashtags file in the folder."""
+    tags = _hashtags(getattr(script, "tags", []) or [])
+    hashtag_line = " ".join(tags)
+    footer = cfg.get("upload", "description_footer", default="").strip()
+    # A clean YouTube description: title, CTA, then hashtags.
+    desc_parts = [script.title.strip()]
+    if footer:
+        desc_parts.append(footer)
+    desc_parts.append(hashtag_line)
+    description = "\n\n".join(p for p in desc_parts if p)
+
+    content = (
+        "================ YOUTUBE / SHORTS UPLOAD DETAILS ================\n\n"
+        "TITLE (copy this):\n"
+        f"{script.title.strip()}\n\n"
+        "DESCRIPTION (copy this):\n"
+        f"{description}\n\n"
+        "HASHTAGS (already in description; copy separately if needed):\n"
+        f"{hashtag_line}\n\n"
+        "================================================================\n"
+    )
+    (job_dir / "upload_details.txt").write_text(content, encoding="utf-8")
+    # Also machine-readable, for any future tooling.
+    (job_dir / "upload_details.json").write_text(
+        json.dumps({"title": script.title, "description": description,
+                    "hashtags": tags}, ensure_ascii=False, indent=2),
+        encoding="utf-8")
