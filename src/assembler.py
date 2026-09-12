@@ -92,7 +92,13 @@ def build_video(
 
     # 4) Burn subtitles ---------------------------------------------------
     if srt_path and srt_path.exists() and cfg.get("subtitles", "enabled", default=True):
-        _burn_subtitles(muxed, srt_path, out_path, cfg)
+        try:
+            _burn_subtitles(muxed, srt_path, out_path, cfg)
+        except Exception as exc:
+            # Never throw away a good render (and the paid voiceover) over a
+            # caption error — keep the video, just without burned-in captions.
+            print(f"  ! Caption burn failed ({exc}). Saving video WITHOUT captions.")
+            shutil.move(str(muxed), str(out_path))
     else:
         shutil.move(str(muxed), str(out_path))
 
@@ -387,6 +393,12 @@ def _add_music(audio: Path, work: Path, cfg: Config) -> Path:
 # --------------------------------------------------------------------------
 # Subtitles
 # --------------------------------------------------------------------------
+def _escape_filter_path(p: Path) -> str:
+    """Make a filesystem path safe for an ffmpeg filter argument (Windows-safe):
+    forward slashes, and the drive-letter colon escaped."""
+    return str(p).replace("\\", "/").replace(":", r"\:")
+
+
 def _burn_subtitles(video: Path, srt: Path, dest: Path, cfg: Config) -> None:
     fonts_dir = cfg.path("assets", "fonts")
     size = cfg.get("subtitles", "font_size", default=24)
@@ -400,8 +412,12 @@ def _burn_subtitles(video: Path, srt: Path, dest: Path, cfg: Config) -> None:
         f"BorderStyle=1,Outline={cfg.get('subtitles', 'outline', default=3)},Shadow=1,"
         f"Alignment=2,MarginV=70"
     )
-    srt_arg = str(srt).replace("\\", "/").replace(":", r"\:")
-    vf = f"subtitles='{srt_arg}':fontsdir='{fonts_dir}':force_style='{style}'"
+    # ffmpeg's filter parser treats ':' and '\' specially, so paths (with a
+    # Windows drive letter like D:\...) must use forward slashes and an
+    # escaped colon. Applies to BOTH the srt file and the fonts dir.
+    srt_arg = _escape_filter_path(srt)
+    fonts_arg = _escape_filter_path(fonts_dir)
+    vf = f"subtitles='{srt_arg}':fontsdir='{fonts_arg}':force_style='{style}'"
     _run([
         "ffmpeg", "-y", "-i", str(video), "-vf", vf,
         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "copy", str(dest),
