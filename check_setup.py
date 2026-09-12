@@ -172,8 +172,9 @@ def _importable(mod: str) -> bool:
 
 
 def _reload_env(env_path: Path) -> None:
-    """Load .env manually too, in case python-dotenv isn't installed."""
-    for line in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+    """Load .env manually too, in case python-dotenv isn't installed.
+    utf-8-sig strips a BOM that editors (or PowerShell) may prepend."""
+    for line in env_path.read_text(encoding="utf-8-sig", errors="ignore").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -183,10 +184,11 @@ def _reload_env(env_path: Path) -> None:
 
 def _env_problems(env_path: Path) -> list[tuple[int, str]]:
     """Return (line_no, text) for every .env line that is not blank, not a
-    comment, and not a valid NAME=value (the cause of dotenv parse errors)."""
+    comment, and not a valid NAME=value (the cause of dotenv parse errors).
+    Reads with utf-8-sig so a leading BOM is not mistaken for a bad line."""
     bad: list[tuple[int, str]] = []
-    for n, raw in enumerate(env_path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
-        s = raw.strip()
+    for n, raw in enumerate(env_path.read_text(encoding="utf-8-sig", errors="ignore").splitlines(), 1):
+        s = raw.strip().lstrip("﻿")
         if not s or s.startswith("#"):
             continue
         name, sep, _ = s.partition("=")
@@ -215,14 +217,19 @@ def _verify_anthropic(key: str) -> tuple[bool, str]:
 
 
 def _verify_elevenlabs(key: str) -> tuple[bool, str]:
+    """A valid key should reach /v1/user or /v1/voices. A 401 'missing the
+    permission' means the key is restricted — make a full-access key."""
     try:
         import requests
-        r = requests.get(
-            "https://api.elevenlabs.io/v1/user", headers={"xi-api-key": key}, timeout=20
-        )
-        if r.status_code == 200:
-            return True, ""
-        return False, f"ElevenLabs returned HTTP {r.status_code}: {r.text[:120]}"
+        for ep in ("https://api.elevenlabs.io/v1/user", "https://api.elevenlabs.io/v1/voices"):
+            r = requests.get(ep, headers={"xi-api-key": key}, timeout=20)
+            if r.status_code == 200:
+                return True, ""
+            last = (r.status_code, r.text[:160])
+        if last[0] == 401 and "permission" in last[1].lower():
+            return False, ("key is RESTRICTED. In ElevenLabs, create an API key with "
+                           "full access (or at least Text-to-Speech + Voices), then update .env.")
+        return False, f"ElevenLabs returned HTTP {last[0]}: {last[1]}"
     except Exception as exc:
         return False, f"ElevenLabs request failed: {str(exc)[:160]}"
 
