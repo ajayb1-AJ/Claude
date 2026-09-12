@@ -59,6 +59,10 @@ The finished video and all intermediate files land in `output/<timestamp>-<slug>
 |---------|---------|-------|-------|
 | Claude | `ANTHROPIC_API_KEY` | console.anthropic.com | Script generation |
 | ElevenLabs | `ELEVENLABS_API_KEY` | you already have this | Set `ELEVENLABS_VOICE_ID` to a voice you tested on Gujarati |
+
+> Find a voice's ID by name: `python main.py --list-voices "Aj Katihyawadi"`
+> (lists all your voices with `--list-voices` and no name). Copy the ID into
+> `.env` as `ELEVENLABS_VOICE_ID=<id>`.
 | Pexels | `PEXELS_API_KEY` | pexels.com/api (free) | Optional — without it you get solid-color slides |
 | YouTube | OAuth client JSON | see below | For auto-upload |
 

@@ -25,7 +25,6 @@ import sys
 from pathlib import Path
 
 from src.config import Config
-from src.pipeline import run_pipeline
 
 QUEUE = Path(__file__).parent / "topics" / "topics.txt"
 
@@ -74,6 +73,10 @@ def main(argv: list[str] | None = None) -> int:
     src.add_argument("--topic", help="Explicit topic (Gujarati or English)")
     src.add_argument("--from-queue", action="store_true", help="Take topic(s) from topics/topics.txt")
     src.add_argument("--auto-topic", action="store_true", help="Let Claude pick a topic")
+    src.add_argument(
+        "--list-voices", nargs="?", const="", metavar="NAME",
+        help="List your ElevenLabs voices (optionally filter by name) and exit",
+    )
 
     parser.add_argument("--count", type=int, default=1, help="How many videos (queue/auto only)")
     parser.add_argument("--no-upload", action="store_true", help="Build only; skip YouTube upload")
@@ -81,6 +84,20 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     cfg = Config.load(args.config) if args.config else Config.load()
+
+    if args.list_voices is not None:
+        from src.voiceover import list_voices
+
+        voices = list_voices(cfg, match=args.list_voices or None)
+        if not voices:
+            print("No matching voices found.")
+            return 1
+        print(f"{'VOICE ID':24}  NAME  (category)")
+        for v in voices:
+            print(f"{v['voice_id']:24}  {v['name']}  ({v['category']})")
+        print("\nCopy the VOICE ID into .env as ELEVENLABS_VOICE_ID=<id>")
+        return 0
+
     do_upload = None if not args.no_upload else False
 
     topics: list[str] = []
@@ -97,6 +114,8 @@ def main(argv: list[str] | None = None) -> int:
             return 1
     elif args.auto_topic:
         topics = [_auto_topic(cfg) for _ in range(args.count)]
+
+    from src.pipeline import run_pipeline
 
     failures = 0
     for topic in topics:

@@ -14,6 +14,30 @@ import requests
 from .config import Config
 
 _API = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps"
+_VOICES_API = "https://api.elevenlabs.io/v1/voices"
+
+
+def list_voices(cfg: Config, match: str | None = None) -> list[dict]:
+    """Return the account's voices (id, name, category).
+
+    If `match` is given, only voices whose name contains it (case-insensitive)
+    are returned — handy for finding a voice ID by name.
+    """
+    if not cfg.elevenlabs_api_key:
+        raise RuntimeError("ELEVENLABS_API_KEY is not set (see .env.example)")
+    resp = requests.get(
+        _VOICES_API, headers={"xi-api-key": cfg.elevenlabs_api_key}, timeout=30
+    )
+    if resp.status_code != 200:
+        raise RuntimeError(f"ElevenLabs error {resp.status_code}: {resp.text[:400]}")
+    voices = [
+        {"voice_id": v["voice_id"], "name": v.get("name", ""), "category": v.get("category", "")}
+        for v in resp.json().get("voices", [])
+    ]
+    if match:
+        needle = match.lower()
+        voices = [v for v in voices if needle in v["name"].lower()]
+    return voices
 
 
 @dataclass
