@@ -91,8 +91,14 @@ visuals:
   seconds_per_scene: 3.5
   min_scenes: 6               # floor, even for very short narration
   max_scenes: 45              # ceiling, to bound API calls / encode time
-  video_ratio: 0.5            # fraction of scenes that are motion video clips
+  video_ratio: 0.4            # fraction of scenes that are motion video clips
                               # (0 = photos only, 1 = video only)
+  # AI-generated images (Pollinations.ai — free, NO key). Generated from each
+  # beat's words, so always on-topic. A fraction of scenes use a fresh AI image.
+  ai_images: true
+  ai_ratio: 0.35              # ~1 in 3 scenes is an AI image matching the words
+  # Extra free photo source (no key) tried alongside Pexels/Pixabay.
+  use_openverse: true
   local_dir: "assets/images"  # your own photos (provider: local)
   clips_dir: "assets/clips"   # your own AI/motion-graphic clips (mp4/mov/webm)
   # Every scene gets a DISTINCT visual (no repeats) and a DIFFERENT motion

@@ -15,6 +15,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import quote
 
 import requests
 
@@ -24,6 +25,8 @@ _PEXELS_PHOTO = "https://api.pexels.com/v1/search"
 _PEXELS_VIDEO = "https://api.pexels.com/videos/search"
 _PIXABAY_PHOTO = "https://pixabay.com/api/"
 _PIXABAY_VIDEO = "https://pixabay.com/api/videos/"
+_OPENVERSE = "https://api.openverse.org/v1/images/"
+_POLLINATIONS = "https://image.pollinations.ai/prompt/"
 
 _IMG_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 _VID_EXT = {".mp4", ".mov", ".webm", ".mkv"}
@@ -70,9 +73,13 @@ def gather_scene_assets(
         print("  ! No PEXELS_API_KEY / PIXABAY_API_KEY — using solid-color slides.")
         return [SceneAsset(_solid_color(i, out_dir), "image") for i in range(count)]
 
-    video_ratio = float(cfg.get("visuals", "video_ratio", default=0.5))
+    video_ratio = float(cfg.get("visuals", "video_ratio", default=0.4))
+    ai_images = bool(cfg.get("visuals", "ai_images", default=True))
+    ai_ratio = float(cfg.get("visuals", "ai_ratio", default=0.35))
     orientation = "portrait" if cfg.is_short else "landscape"
     photo_sources = [_pexels_photos, _pixabay_photos]
+    if cfg.get("visuals", "use_openverse", default=True):
+        photo_sources.append(_openverse_photos)
     video_sources = [_pexels_videos, _pixabay_videos]
     if provider == "pixabay":
         photo_sources.reverse()
@@ -107,18 +114,33 @@ def gather_scene_assets(
             cache[key] = clean
         return cache[key]
 
+    w, h = cfg.resolution
     assets: list[SceneAsset] = []
     for i in range(count):
         query = queries[i % len(queries)]
-        # Alternate video/photo scenes by the configured ratio.
+        # Decide this scene's preferred source order. Mix AI images, motion
+        # video, and stock photos so the video is varied and on-topic.
         want_video = video_ratio > 0 and (i % max(1, round(1 / video_ratio))) == 0
-        kinds = ["video", "image"] if want_video else ["image", "video"]
+        want_ai = ai_images and ai_ratio > 0 and (i % max(1, round(1 / ai_ratio))) == 1
+        if want_ai:
+            order = ["ai", "video", "image"]
+        elif want_video:
+            order = ["video", "ai", "image"]
+        else:
+            order = ["image", "video", "ai"]
 
         asset = None
-        for kind in kinds:
+        for kind in order:
+            if kind == "ai":
+                if not ai_images:
+                    continue
+                saved = _ai_image(query, out_dir, i, w, h)
+                if saved:
+                    asset = SceneAsset(saved, "image")
+                    break
+                continue
             url = _pick_unused(candidates(query, kind), used)
-            # If this query is exhausted, try any other query's pool for variety.
-            if not url:
+            if not url:  # this query exhausted -> borrow another query's pool
                 for alt in queries:
                     url = _pick_unused(candidates(alt, kind), used)
                     if url:
@@ -134,6 +156,24 @@ def gather_scene_assets(
             asset = SceneAsset(_solid_color(i, out_dir), "image")
         assets.append(asset)
     return assets
+
+
+def _ai_image(query: str, out_dir: Path, i: int, w: int, h: int) -> Path | None:
+    """Generate an on-topic image from the beat's words (Pollinations, free, no key)."""
+    prompt = f"{query}, cinematic, warm lighting, highly detailed, no text, no watermark"
+    url = (_POLLINATIONS + quote(prompt)
+           + f"?width={w}&height={h}&nologo=true&seed={random.randint(1, 10**7)}")
+    dest = out_dir / f"scene_{i:02d}_ai.jpg"
+    try:
+        r = requests.get(url, timeout=90)
+        r.raise_for_status()
+        if len(r.content) < 2000:  # too small = likely an error placeholder
+            return None
+        dest.write_bytes(r.content)
+        return dest
+    except Exception as exc:
+        print(f"  ! AI image failed for '{query}': {exc}")
+        return None
 
 
 def _pick_unused(items: list[dict], used: set[str]) -> str | None:
@@ -194,6 +234,27 @@ def _pixabay_photos(query: str, orientation: str, cfg: Config) -> list[dict]:
         u = h.get("largeImageURL") or h.get("webformatURL")
         if u:
             out.append({"url": u, "text": h.get("tags", "")})
+    return out
+
+
+def _openverse_photos(query: str, orientation: str, cfg: Config) -> list[dict]:
+    """Free CC images from Openverse (no API key needed)."""
+    try:
+        r = requests.get(
+            _OPENVERSE,
+            params={"q": query, "page_size": 12, "license_type": "commercial",
+                    "mature": "false"},
+            headers={"User-Agent": "gujarati-youtube-automation"},
+            timeout=30,
+        )
+        r.raise_for_status()
+    except Exception:
+        return []
+    out = []
+    for h in r.json().get("results", []):
+        u = h.get("url")
+        if u:
+            out.append({"url": u, "text": h.get("title", "") + " " + h.get("source", "")})
     return out
 
 

@@ -158,8 +158,10 @@ Built for high average-view-duration (the goal: 90–95% retention):
   (candidates are pulled in bulk and de-duplicated across the whole video).
 - **Varied motion (not just zoom)** — 10 effects (zoom-in/out, pans in every
   direction, corner zooms) chosen so the same effect never runs back-to-back.
-- **Photos + video clips** — each scene is a Pexels/Pixabay photo *or* stock
-  video; mix controlled by `visuals.video_ratio`.
+- **Multiple visual sources, mixed** — each scene draws from AI-generated
+  images (Pollinations, free, no key — generated from the beat's words, so
+  always on-topic), Pexels/Pixabay **stock video**, and Pexels/Pixabay/Openverse
+  **photos**. Ratios: `visuals.ai_ratio`, `visuals.video_ratio`.
 - **Your own clips** — drop AI-generated or motion-graphic clips into
   `assets/clips/` and set `visuals.provider: local`.
 - **Varied transition SFX** — a library of 7 sounds (whoosh, swoosh, click,
