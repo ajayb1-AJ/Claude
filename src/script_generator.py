@@ -93,12 +93,15 @@ def manual_script(narration: str, cfg: Config, title: str | None = None) -> Vide
 
     Title/tags/scene-queries are derived locally so the rest of the pipeline
     (voice, visuals, assembly, upload) runs exactly the same."""
-    narration = narration.strip()
-    if not narration:
+    raw = narration.strip()
+    if not raw:
         raise ValueError("Manual script is empty.")
+    lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+    # Line 1 is the TITLE (metadata only). The narration starts at line 2 so the
+    # first SPOKEN words are the hook — critical for Shorts/Reels retention.
     if not title:
-        first_line = narration.splitlines()[0].strip()
-        title = (first_line[:70] or "ગુજરાતી વાર્તા")
+        title = (lines[0][:70] or "ગુજરાતી વાર્તા")
+    narration = "\n".join(lines[1:]).strip() if len(lines) > 1 else raw
     footer = cfg.get("upload", "description_footer", default="")
     description = (title + ("\n" + footer if footer else "")).strip()
     from_dur = cfg.get("channel", "target_duration_sec", default=90)

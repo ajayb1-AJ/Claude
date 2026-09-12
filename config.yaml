@@ -7,9 +7,9 @@
 channel:
   language: "Gujarati"
   language_code: "gu"
-  # Long-form storytelling (16:9) or Shorts (9:16).
-  format: "long"          # "long" -> 1920x1080, "short" -> 1080x1920
-  target_duration_sec: 90 # rough target; the script prompt aims for this
+  # Long-form storytelling (16:9) or Shorts/Reels (9:16).
+  format: "short"         # "short" -> 1080x1920 (Shorts/Reels), "long" -> 1920x1080
+  target_duration_sec: 45 # Shorts do best under ~60s
 
 # ---------------------------------------------------------------------------
 # NICHE — the flagship niche chosen after research:
@@ -99,7 +99,7 @@ subtitles:
   # A Gujarati-capable font MUST be present or subtitles render as boxes.
   # Download Noto Sans Gujarati and place the .ttf here (see README).
   font_file: "assets/fonts/NotoSansGujarati-Bold.ttf"
-  font_size: 22               # scaled for 1080p; auto-adjusts for shorts
+  font_size: 13               # smaller captions (was too large); tune 11-16
   primary_color: "&H00FFFFFF" # white (ASS format, &HAABBGGRR)
   outline_color: "&H00000000" # black outline
   outline: 2

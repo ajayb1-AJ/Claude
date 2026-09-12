@@ -407,9 +407,9 @@ def _escape_filter_path(p: Path) -> str:
 
 def _burn_subtitles(video: Path, srt: Path, dest: Path, cfg: Config) -> None:
     fonts_dir = cfg.path("assets", "fonts")
-    size = cfg.get("subtitles", "font_size", default=24)
+    size = cfg.get("subtitles", "font_size", default=14)
     if cfg.is_short:
-        size = int(size * 1.5)
+        size = round(size * 1.15)  # slightly larger for portrait, not huge
     style = (
         f"FontName=Noto Sans Gujarati,"
         f"FontSize={size},Bold=1,"

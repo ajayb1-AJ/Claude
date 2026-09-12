@@ -81,6 +81,11 @@ def main(argv: list[str] | None = None) -> int:
         "--script-file", metavar="PATH",
         help="Use your OWN Gujarati narration from a text file (NO Anthropic key needed)",
     )
+    src.add_argument(
+        "--daily", action="store_true",
+        help="Make today's video from the NEXT script in stories/queue/ (no API). "
+             "The used script is moved to stories/done/.",
+    )
 
     parser.add_argument("--count", type=int, default=1, help="How many videos (queue/auto only)")
     parser.add_argument("--no-upload", action="store_true", help="Build only; skip YouTube upload")
@@ -106,6 +111,32 @@ def main(argv: list[str] | None = None) -> int:
     do_upload = None if not args.no_upload else False
 
     from src.pipeline import run_pipeline
+
+    # Daily mode: pull the next queued script, render, archive it. No API.
+    if args.daily:
+        from src.script_generator import manual_script
+        queue_dir = Path(__file__).parent / "stories" / "queue"
+        done_dir = Path(__file__).parent / "stories" / "done"
+        done_dir.mkdir(parents=True, exist_ok=True)
+        scripts = sorted(queue_dir.glob("*.txt")) if queue_dir.exists() else []
+        if not scripts:
+            print("Queue is empty (stories/queue/). Add scripts, or ask Claude for more.",
+                  file=sys.stderr)
+            return 2
+        nxt = scripts[0]
+        print(f"Daily: using next queued script -> {nxt.name} "
+              f"({len(scripts)} in queue)")
+        script = manual_script(nxt.read_text(encoding="utf-8"), cfg)
+        try:
+            run_pipeline(script.title, cfg, do_upload=do_upload, script=script)
+        except Exception as exc:
+            print(f"!! Failed on '{nxt.name}': {exc}", file=sys.stderr)
+            return 1
+        # Archive the used script so tomorrow takes the next one.
+        import shutil, time as _t
+        shutil.move(str(nxt), str(done_dir / f"{_t.strftime('%Y%m%d')}_{nxt.name}"))
+        print(f"\nDone. Archived {nxt.name}; {len(scripts)-1} left in queue.")
+        return 0
 
     # Manual-script mode: no Anthropic API used at all.
     if args.script_file:

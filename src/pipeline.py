@@ -52,13 +52,18 @@ def run_pipeline(topic: str, cfg: Config, do_upload: bool | None = None,
     scene_durations = voice.scene_durations or None
     if scene_durations:
         n_scenes = len(scene_durations)
-        print(f"[3/5] Gathering {n_scenes} distinct visuals (1 per spoken beat)...")
+        # Match each scene's image to that beat's actual words (Gujarati->query).
+        from .keywords import beats_to_queries
+        theme = cfg.get("niche", "visual_theme", default="cinematic indian village")
+        scene_queries = beats_to_queries(voice.beats, theme) or script.scenes
+        print(f"[3/5] Gathering {n_scenes} beat-matched visuals (1 per spoken beat)...")
     else:
         n_scenes = scene_count_for_duration(
             voice.duration_sec or cfg.get("channel", "target_duration_sec", default=90), cfg
         )
+        scene_queries = script.scenes
         print(f"[3/5] Gathering {n_scenes} distinct visuals...")
-    assets = gather_scene_assets(script.scenes, job_dir / "images", cfg, count=n_scenes)
+    assets = gather_scene_assets(scene_queries, job_dir / "images", cfg, count=n_scenes)
     kinds = ", ".join(a.kind[0] for a in assets)  # e.g. "i,v,i,v,..."
     print(f"      {len(assets)} scenes [{kinds}]")
 
