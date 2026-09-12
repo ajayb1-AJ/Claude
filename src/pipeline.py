@@ -46,13 +46,18 @@ def run_pipeline(topic: str, cfg: Config, do_upload: bool | None = None,
     print(f"      Duration: {voice.duration_sec:.1f}s")
 
     # 3. Visuals ------------------------------------------------------------
-    # Scene count follows the real narration length and the desired pace
-    # (a new scene every ~seconds_per_scene), so the video is never static.
-    n_scenes = scene_count_for_duration(
-        voice.duration_sec or cfg.get("channel", "target_duration_sec", default=90), cfg
-    )
-    sps = cfg.get("visuals", "seconds_per_scene", default=3.5)
-    print(f"[3/5] Gathering {n_scenes} distinct visuals (~{sps}s/scene, photos + video)...")
+    # One scene per spoken BEAT: the visual cut lands exactly on each beat, so
+    # voice and edit stay synced (from the voiceover manifest). Falls back to a
+    # paced count if per-beat timing isn't available.
+    scene_durations = voice.scene_durations or None
+    if scene_durations:
+        n_scenes = len(scene_durations)
+        print(f"[3/5] Gathering {n_scenes} distinct visuals (1 per spoken beat)...")
+    else:
+        n_scenes = scene_count_for_duration(
+            voice.duration_sec or cfg.get("channel", "target_duration_sec", default=90), cfg
+        )
+        print(f"[3/5] Gathering {n_scenes} distinct visuals...")
     assets = gather_scene_assets(script.scenes, job_dir / "images", cfg, count=n_scenes)
     kinds = ", ".join(a.kind[0] for a in assets)  # e.g. "i,v,i,v,..."
     print(f"      {len(assets)} scenes [{kinds}]")
@@ -62,6 +67,7 @@ def run_pipeline(topic: str, cfg: Config, do_upload: bool | None = None,
     out_path = job_dir / "final.mp4"
     build_video(
         images=assets,
+        scene_durations=scene_durations,
         audio_path=voice.audio_path,
         srt_path=voice.srt_path,
         duration_sec=voice.duration_sec or cfg.get("channel", "target_duration_sec", default=90),

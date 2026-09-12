@@ -167,6 +167,13 @@ Built for high average-view-duration (the goal: 90–95% retention):
   the same sound never repeats consecutively (`sfx.variety`).
 - **Ducked background music** — sidechain compression lowers music under the
   voice automatically (`music.enabled` + a royalty-free track in `assets/music/`).
+- **Natural Gujarati voice (eleven_v3, per-beat)** — the script is split into
+  short beats, each synthesized as its own `eleven_v3` call (the only model
+  that gives a natural, non-robotic Gujarati accent), silence-trimmed, and
+  joined with fixed gaps. A timing **manifest** then drives scene cuts,
+  captions, and SFX so voice and edit stay perfectly synced. Use a real
+  Gujarati **voice clone** — stock voices sound robotic. Test settings fast
+  with `python tools/voice_test.py`.
 - **Loudness-normalized voice** — even, broadcast-style level so the narration
   is never too loud or too quiet (`voiceover.loudnorm`). Tune pitch with
   `voiceover.pitch` (e.g. `1.03` slightly higher, `0.97` lower).

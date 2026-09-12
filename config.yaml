@@ -30,6 +30,8 @@ niche:
     - કુટુંબ સાથે જોઈ શકાય એવી, સકારાત્મક અને સન્માનજનક હોય
     - કોઈ ચોક્કસ ધર્મ, જાતિ કે વ્યક્તિની ટીકા ન કરે
     - ફક્ત મૌલિક (original) વાર્તા હોય — કોઈ કૉપીરાઇટ સામગ્રી નકલ ન કરે
+    - કુદરતી ગુજરાતી લખો; અંગ્રેજી શબ્દો ટાળો (ફક્ત proper noun/brand છૂટ)
+    - ટૂંકા, ઝડપી વાક્યો વાપરો — દરેક વાક્ય એક અલગ beat બને છે, લય બદલતા રહો
   # Used to steer image search queries (in English, since stock APIs index in English).
   visual_theme: "warm cinematic indian village, temple, nature, elderly wisdom, soft light"
   title_style: "curiosity-driven Gujarati title with an emoji, under 70 characters"
@@ -41,17 +43,28 @@ script:
 
 voiceover:
   provider: "elevenlabs"
-  # eleven_multilingual_v2 / eleven_turbo_v2_5 both support Gujarati.
-  model_id: "eleven_multilingual_v2"
-  # Default voice = "Aj Katihyawadi" (your custom Gujarati voice).
-  # Overridable per-run by setting ELEVENLABS_VOICE_ID in .env.
+  # eleven_v3 = the only model that gives a NATURAL (non-robotic) Gujarati
+  # accent. (Older models: eleven_multilingual_v2 — flatter but supports
+  # continuous stability + style + speed.)
+  model_id: "eleven_v3"
+  output_format: "mp3_44100_128"
+  # Default voice = "Aj Katihyawadi" (your custom Gujarati clone).
+  # IMPORTANT: use a real Gujarati voice CLONE — stock/library voices sound
+  # robotic with a foreign accent. Keep ONE locked voice for channel identity.
   default_voice_id: "aGiqwq7BkeMTuW3338ZJ"
-  # --- expressiveness (lower stability + higher style = MORE emotion) ---
-  stability: 0.35       # 0.0-1.0. LOW = emotional/varied, HIGH = flat/monotone
-  style: 0.45           # 0.0-1.0. Higher = more stylistic/emotional exaggeration
-  similarity_boost: 0.80
+  # --- v3 voice settings (stability is DISCRETE: snaps to 0.0 / 0.5 / 1.0) ---
+  stability: 0.5        # 0.0=most expressive/variable, 0.5=balanced, 1.0=steady
+  similarity_boost: 0.8
   use_speaker_boost: true
-  # --- audio post-processing (fixes "voice too hard / too low") ---
+  # style + speed are IGNORED by v3; used only by older models:
+  style: 0.0
+  speed: 0.98
+  # --- per-beat generation (the key tactic for natural Gujarati) ---
+  per_beat: true        # generate one TTS call per sentence/clause, then join
+  beat_gap_sec: 0.32    # silence inserted between beats
+  beat_min_chars: 15    # merge fragments shorter than this into one beat
+  beat_max_chars: 240
+  # --- audio post-processing ---
   loudnorm: true        # even, broadcast-style loudness (EBU R128)
   pitch: 1.0            # 1.0 = unchanged. 1.03 = slightly higher, 0.97 = lower.
 

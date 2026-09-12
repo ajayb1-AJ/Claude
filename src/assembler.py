@@ -50,6 +50,7 @@ def build_video(
     duration_sec: float,
     out_path: Path,
     cfg: Config,
+    scene_durations: list[float] | None = None,
 ) -> Path:
     ensure_ffmpeg()
     w, h = cfg.resolution
@@ -58,11 +59,16 @@ def build_video(
 
     assets = _as_assets(images)
     n = max(1, len(assets))
-    # Distribute the real narration duration evenly across scenes.
-    total = max(duration_sec, 3.0)
-    per = total / n
-    durations = [per] * n
-    durations[-1] = total - per * (n - 1)  # last absorbs rounding
+    if scene_durations and len(scene_durations) == n:
+        # Beat-aligned durations from the voiceover manifest: each scene cut
+        # lands exactly on a spoken beat, so voice and edit stay in sync.
+        durations = list(scene_durations)
+    else:
+        # Fallback: distribute the total duration evenly across scenes.
+        total = max(duration_sec, 3.0)
+        per = total / n
+        durations = [per] * n
+        durations[-1] = total - per * (n - 1)  # last absorbs rounding
 
     # Non-repeating motion effect per scene (never the same as the previous).
     effects = _effect_sequence(n)
