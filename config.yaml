@@ -36,8 +36,10 @@ niche:
     - ફક્ત મૌલિક (original) વાર્તા હોય — કોઈ કૉપીરાઇટ સામગ્રી નકલ ન કરે
     - કુદરતી ગુજરાતી લખો; અંગ્રેજી શબ્દો ટાળો (ફક્ત proper noun/brand છૂટ)
     - ટૂંકા, ઝડપી વાક્યો વાપરો — દરેક વાક્ય એક અલગ beat બને છે, લય બદલતા રહો
-  # Used to steer image search queries (in English, since stock APIs index in English).
-  visual_theme: "warm cinematic indian village, temple, nature, elderly wisdom, soft light"
+  # Used to steer image search queries (in English, since stock APIs index in
+  # English). Keep it scenic/symbolic and relatable — NO flags, politics, or
+  # random people (those are also blocked in code).
+  visual_theme: "cinematic rural india landscape, nature, temple, fields, sunrise, river, symbolic emotional"
   title_style: "curiosity-driven Gujarati title with an emoji, under 70 characters"
 
 script:

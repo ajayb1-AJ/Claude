@@ -6,6 +6,7 @@ youtube_token.json
 
 # Generated media
 output/
+Daily Videos/
 assets/images/
 assets/clips/*.mp4
 assets/clips/*.mov

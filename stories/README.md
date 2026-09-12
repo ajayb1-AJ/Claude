@@ -12,9 +12,16 @@ Videos are made from ready-written Gujarati scripts. No Anthropic/LLM key needed
 python main.py --daily            # makes daily.count videos (config: 3)
 python main.py --daily --count 5  # override: make 5 this run
 ```
-It renders the next scripts in `queue/` (alphabetical order), each into its own
-dated folder under `output/`, then moves each used script to `done/`. Change the
-daily number in `config.yaml` under `daily: count:`.
+Output layout — a clean folder per video:
+```
+Daily Videos/
+  12 September 2026/
+    1/  final.mp4   upload_details.txt
+    2/  final.mp4   upload_details.txt
+    3/  final.mp4   upload_details.txt
+```
+Each used script moves to `done/`. Change the daily number in `config.yaml`
+under `daily: count:`.
 
 ## Run it automatically every day (Windows Task Scheduler)
 1. Open **Task Scheduler** → **Create Basic Task**.

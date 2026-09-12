@@ -28,6 +28,23 @@ _PIXABAY_VIDEO = "https://pixabay.com/api/videos/"
 _IMG_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 _VID_EXT = {".mp4", ".mov", ".webm", ".mkv"}
 
+# Reject stock whose description/tags contain these — they rarely match a moral
+# story and look out of place (flags, politics, brands, sports, random selfies).
+_BLOCK = {
+    "flag", "politician", "president", "minister", "election", "vote", "protest",
+    "rally", "parliament", "map", "cricket", "football", "stadium", "bollywood",
+    "celebrity", "actor", "singer", "concert", "logo", "brand", "poster",
+    "billboard", "currency", "banknote", "soldier", "army", "military", "war",
+    "weapon", "gun", "selfie", "model posing", "fashion model", "influencer",
+    "office meeting", "business suit", "corporate", "laptop", "smartphone",
+    "computer", "car", "traffic", "city skyline", "skyscraper",
+}
+
+
+def _blocked(text: str) -> bool:
+    t = (text or "").lower()
+    return any(b in t for b in _BLOCK)
+
 
 @dataclass
 class SceneAsset:
@@ -61,24 +78,33 @@ def gather_scene_assets(
         photo_sources.reverse()
         video_sources.reverse()
 
-    # Cache candidate URL lists per (query, kind) and track what we've used so
-    # no two scenes reuse the same clip/photo — even when a query repeats.
-    cache: dict[tuple[str, str], list[str]] = {}
+    # Cache candidate lists per (query, kind). Each candidate is {url, text};
+    # `text` (alt/tags) lets us reject off-topic stock (flags, politics, etc.).
+    cache: dict[tuple[str, str], list[dict]] = {}
     used: set[str] = set()
 
-    def candidates(query: str, kind: str) -> list[str]:
+    def candidates(query: str, kind: str) -> list[dict]:
         key = (query, kind)
         if key not in cache:
-            urls: list[str] = []
+            items: list[dict] = []
             sources = video_sources if kind == "video" else photo_sources
             for src in sources:
                 try:
-                    urls += src(query, orientation, cfg)
+                    items += src(query, orientation, cfg)
                 except Exception as exc:
                     print(f"  ! {src.__name__} error for '{query}': {exc}")
-            # de-dupe preserving order
+            # Drop blocked/off-topic results, de-dupe, then SHUFFLE so different
+            # videos pick different images even for the same query.
             seen: set[str] = set()
-            cache[key] = [u for u in urls if not (u in seen or seen.add(u))]
+            clean = []
+            for it in items:
+                u = it.get("url")
+                if not u or u in seen or _blocked(it.get("text", "")):
+                    continue
+                seen.add(u)
+                clean.append(it)
+            random.shuffle(clean)
+            cache[key] = clean
         return cache[key]
 
     assets: list[SceneAsset] = []
@@ -110,10 +136,10 @@ def gather_scene_assets(
     return assets
 
 
-def _pick_unused(urls: list[str], used: set[str]) -> str | None:
-    for u in urls:
-        if u not in used:
-            return u
+def _pick_unused(items: list[dict], used: set[str]) -> str | None:
+    for it in items:
+        if it["url"] not in used:
+            return it["url"]
     return None
 
 
@@ -131,7 +157,7 @@ def _download(url: str, out_dir: Path, i: int, kind: str) -> Path | None:
 
 
 # --- candidate lists (return MANY urls so scenes stay distinct) ------------
-def _pexels_photos(query: str, orientation: str, cfg: Config) -> list[str]:
+def _pexels_photos(query: str, orientation: str, cfg: Config) -> list[dict]:
     if not cfg.pexels_api_key:
         return []
     r = requests.get(
@@ -146,11 +172,11 @@ def _pexels_photos(query: str, orientation: str, cfg: Config) -> list[str]:
         src = p.get("src", {})
         u = src.get("large2x") or src.get("large") or src.get("original")
         if u:
-            out.append(u)
+            out.append({"url": u, "text": p.get("alt", "")})
     return out
 
 
-def _pixabay_photos(query: str, orientation: str, cfg: Config) -> list[str]:
+def _pixabay_photos(query: str, orientation: str, cfg: Config) -> list[dict]:
     if not cfg.pixabay_api_key:
         return []
     r = requests.get(
@@ -167,11 +193,11 @@ def _pixabay_photos(query: str, orientation: str, cfg: Config) -> list[str]:
     for h in r.json().get("hits", []):
         u = h.get("largeImageURL") or h.get("webformatURL")
         if u:
-            out.append(u)
+            out.append({"url": u, "text": h.get("tags", "")})
     return out
 
 
-def _pexels_videos(query: str, orientation: str, cfg: Config) -> list[str]:
+def _pexels_videos(query: str, orientation: str, cfg: Config) -> list[dict]:
     if not cfg.pexels_api_key:
         return []
     r = requests.get(
@@ -190,11 +216,13 @@ def _pexels_videos(query: str, orientation: str, cfg: Config) -> list[str]:
                 best = f["link"]
         best = best or (files[-1]["link"] if files else None)
         if best:
-            out.append(best)
+            # Pexels videos expose tags as a list of {name}.
+            tags = " ".join(t.get("name", "") for t in v.get("tags", []) if isinstance(t, dict))
+            out.append({"url": best, "text": tags})
     return out
 
 
-def _pixabay_videos(query: str, orientation: str, cfg: Config) -> list[str]:
+def _pixabay_videos(query: str, orientation: str, cfg: Config) -> list[dict]:
     if not cfg.pixabay_api_key:
         return []
     r = requests.get(
@@ -208,7 +236,7 @@ def _pixabay_videos(query: str, orientation: str, cfg: Config) -> list[str]:
         v = h.get("videos", {})
         for size in ("large", "medium", "small"):
             if v.get(size, {}).get("url"):
-                out.append(v[size]["url"])
+                out.append({"url": v[size]["url"], "text": h.get("tags", "")})
                 break
     return out
 
