@@ -30,9 +30,11 @@ def check(ok: bool, label: str, hint: str = "", warn_only: bool = False) -> None
         results.append(ok)
 
 
-def main() -> int:
+def main(live: bool = False) -> int:
     print("=" * 60)
     print(" Gujarati YouTube automation — setup check")
+    if live:
+        print(" (live mode: contacting Anthropic + ElevenLabs to verify keys)")
     print("=" * 60)
 
     # 1. Python version -----------------------------------------------------
@@ -72,11 +74,18 @@ def main() -> int:
         f"Run: pip install -r requirements.txt  (missing: {', '.join(missing)})",
     )
 
-    # 5. .env exists + keys present ----------------------------------------
+    # 5. .env exists + is well-formed + keys present -----------------------
     env_path = ROOT / ".env"
     check(env_path.exists(), ".env file exists",
           "Run: copy .env.example .env   then edit it.")
     if env_path.exists():
+        bad = _env_problems(env_path)
+        check(
+            not bad,
+            ".env is well-formed (every line is NAME=value)",
+            "These lines are not NAME=value — fix or delete them: "
+            + "; ".join(f"line {n}: {ln!r}" for n, ln in bad),
+        )
         try:
             from dotenv import load_dotenv
             load_dotenv(env_path)
@@ -94,8 +103,13 @@ def main() -> int:
     check(
         eleven_key.startswith("sk_") and len(eleven_key) > 20,
         "ELEVENLABS_API_KEY is set",
-        "Add ELEVENLABS_API_KEY=sk_... to .env",
+        "Add ELEVENLABS_API_KEY=sk_... to .env (one line, no tabs/labels/quotes)",
     )
+
+    # 5b. Optionally verify the keys actually work (network) ----------------
+    if live:
+        _live_check("ANTHROPIC_API_KEY", anthropic_key, _verify_anthropic)
+        _live_check("ELEVENLABS_API_KEY", eleven_key, _verify_elevenlabs)
 
     # 6. Optional keys ------------------------------------------------------
     has_stock = bool(
@@ -167,6 +181,52 @@ def _reload_env(env_path: Path) -> None:
         os.environ.setdefault(key.strip(), val.strip())
 
 
+def _env_problems(env_path: Path) -> list[tuple[int, str]]:
+    """Return (line_no, text) for every .env line that is not blank, not a
+    comment, and not a valid NAME=value (the cause of dotenv parse errors)."""
+    bad: list[tuple[int, str]] = []
+    for n, raw in enumerate(env_path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+        s = raw.strip()
+        if not s or s.startswith("#"):
+            continue
+        name, sep, _ = s.partition("=")
+        name = name.strip()
+        # Valid: NAME=... where NAME is a plain identifier (no spaces/tabs/labels).
+        if not sep or not name or not all(c.isalnum() or c == "_" for c in name):
+            bad.append((n, raw))
+    return bad
+
+
+def _live_check(label: str, key: str, verifier) -> None:
+    if not key:
+        check(False, f"{label} works (live)", "key not set, so nothing to test")
+        return
+    ok, detail = verifier(key)
+    check(ok, f"{label} works (live)", detail)
+
+
+def _verify_anthropic(key: str) -> tuple[bool, str]:
+    try:
+        from anthropic import Anthropic
+        Anthropic(api_key=key).models.list()
+        return True, ""
+    except Exception as exc:
+        return False, f"Anthropic rejected the key: {str(exc)[:160]}"
+
+
+def _verify_elevenlabs(key: str) -> tuple[bool, str]:
+    try:
+        import requests
+        r = requests.get(
+            "https://api.elevenlabs.io/v1/user", headers={"xi-api-key": key}, timeout=20
+        )
+        if r.status_code == 200:
+            return True, ""
+        return False, f"ElevenLabs returned HTTP {r.status_code}: {r.text[:120]}"
+    except Exception as exc:
+        return False, f"ElevenLabs request failed: {str(exc)[:160]}"
+
+
 def _font_present() -> bool:
     fonts = ROOT / "assets" / "fonts"
     if not fonts.exists():
@@ -175,4 +235,4 @@ def _font_present() -> bool:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(live="--live" in sys.argv))
