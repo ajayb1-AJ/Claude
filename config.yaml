@@ -117,9 +117,10 @@ subtitles:
   outline: 2
 
 music:
-  enabled: false              # set true and add a royalty-free track below
-  file: "assets/music/background.mp3"
-  volume: 0.08                # ducked well under the narration
+  enabled: true               # background music, auto-ducked under the voice
+  dir: "assets/music"         # a RANDOM track from here is used each video
+  file: ""                    # set a specific file to always use that one
+  volume: 0.12                # low; sidechain-ducks further under narration
 
 upload:
   enabled: false              # NO auto-posting — you upload videos to YouTube yourself

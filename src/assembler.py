@@ -369,13 +369,31 @@ def _make_sfx_library(work: Path) -> list[Path]:
     return paths
 
 
+def _pick_music(cfg: Config) -> Path | None:
+    """A specific music.file if set, else a RANDOM track from music.dir so the
+    day's videos don't all share the same background music."""
+    f = cfg.get("music", "file", default="")
+    if f:
+        p = cfg.path(f)
+        if p.exists():
+            return p
+    music_dir = cfg.path(cfg.get("music", "dir", default="assets/music"))
+    if music_dir.exists():
+        tracks = [p for p in music_dir.iterdir()
+                  if p.suffix.lower() in {".mp3", ".wav", ".m4a", ".ogg"}]
+        if tracks:
+            return random.choice(tracks)
+    return None
+
+
 def _add_music(audio: Path, work: Path, cfg: Config) -> Path:
     if not cfg.get("music", "enabled", default=False):
         return audio
-    music_file = cfg.path(cfg.get("music", "file", default=""))
-    if not music_file.exists():
-        print(f"  ! music enabled but file not found: {music_file}")
+    music_file = _pick_music(cfg)
+    if not music_file:
+        print("  ! music enabled but no track found in assets/music/ — skipping.")
         return audio
+    print(f"  music: {music_file.name}")
     try:
         vol = float(cfg.get("music", "volume", default=0.12))
         # Sidechain-duck the music under the voice, then mix.
