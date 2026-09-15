@@ -6,7 +6,7 @@
 
 # How many videos the daily run makes (main.py --daily). Override per-run with --count.
 daily:
-  count: 3
+  count: 5
 
 channel:
   language: "Gujarati"
