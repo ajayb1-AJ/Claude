@@ -71,8 +71,10 @@ voiceover:
   beat_min_chars: 15    # merge fragments shorter than this into one beat
   beat_max_chars: 240
   # --- audio post-processing ---
-  enhance: true         # EQ + compression for a fuller, clearer broadcast voice
-  loudnorm: true        # even loudness (EBU R128), tuned loud for phone speakers
+  # enhance (EQ+compression) changed the delivery, so it's OFF — keeps the
+  # original natural speaking pattern. Quality comes from eleven_v3 + the clone.
+  enhance: false
+  loudnorm: true        # even loudness only (EBU R128) — does NOT change cadence
   pitch: 1.0            # 1.0 = unchanged. 1.03 = slightly higher, 0.97 = lower.
 
 # Transition sound effects — a VARIETY of sounds at scene changes

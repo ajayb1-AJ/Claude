@@ -95,11 +95,9 @@ def synthesize(text: str, out_dir: Path, cfg: Config, make_srt: bool = True) -> 
 
     srt_path: Path | None = None
     if make_srt:
-        # ASS (not SRT) so the FIRST beat renders as a big centered HOOK overlay
-        # (on-screen hook text lifts retention) and the rest as normal captions.
-        srt_path = out_dir / "narration.ass"
-        w, h = cfg.resolution
-        srt_path.write_text(_manifest_to_ass(beat_meta, w, h, cfg), encoding="utf-8")
+        # Uniform, well-fitting bottom captions (the layout that worked before).
+        srt_path = out_dir / "narration.srt"
+        srt_path.write_text(_manifest_to_srt(beat_meta), encoding="utf-8")
 
     return VoiceResult(
         audio_path=audio_path, srt_path=srt_path, duration_sec=total,
