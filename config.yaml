@@ -71,7 +71,8 @@ voiceover:
   beat_min_chars: 15    # merge fragments shorter than this into one beat
   beat_max_chars: 240
   # --- audio post-processing ---
-  loudnorm: true        # even, broadcast-style loudness (EBU R128)
+  enhance: true         # EQ + compression for a fuller, clearer broadcast voice
+  loudnorm: true        # even loudness (EBU R128), tuned loud for phone speakers
   pitch: 1.0            # 1.0 = unchanged. 1.03 = slightly higher, 0.97 = lower.
 
 # Transition sound effects — a VARIETY of sounds at scene changes
@@ -91,12 +92,11 @@ visuals:
   seconds_per_scene: 3.5
   min_scenes: 6               # floor, even for very short narration
   max_scenes: 45              # ceiling, to bound API calls / encode time
-  video_ratio: 0.4            # fraction of scenes that are motion video clips
-                              # (0 = photos only, 1 = video only)
+  video_ratio: 0.6            # MOST scenes are real motion footage (realism)
   # AI-generated images (Pollinations.ai — free, NO key). Generated from each
   # beat's words, so always on-topic. A fraction of scenes use a fresh AI image.
   ai_images: true
-  ai_ratio: 0.35              # ~1 in 3 scenes is an AI image matching the words
+  ai_ratio: 0.25              # ~1 in 4 scenes is an AI image matching the words
   # Extra free photo source (no key) tried alongside Pexels/Pixabay.
   use_openverse: true
   local_dir: "assets/images"  # your own photos (provider: local)
@@ -111,9 +111,12 @@ subtitles:
   # A Gujarati-capable font MUST be present or subtitles render as boxes.
   # Download Noto Sans Gujarati and place the .ttf here (see README).
   font_file: "assets/fonts/NotoSansGujarati-Bold.ttf"
-  font_size: 13               # smaller captions (was too large); tune 11-16
-  primary_color: "&H00FFFFFF" # white (ASS format, &HAABBGGRR)
-  outline_color: "&H00000000" # black outline
+  # Caption sizes as a fraction of video height (ASS, pixel-accurate).
+  caption_scale: 0.030        # normal bottom captions (~58px at 1920). tune 0.026-0.036
+  hook_scale: 0.055           # BIG centered hook overlay for the opening line
+  font_size: 13               # (legacy, used only for non-ASS srt fallback)
+  primary_color: "&H00FFFFFF"
+  outline_color: "&H00000000"
   outline: 2
 
 music:

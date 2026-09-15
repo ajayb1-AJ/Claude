@@ -11,42 +11,52 @@ import re
 # Gujarati keyword -> English image query fragment. Order roughly by specificity.
 _MAP: dict[str, str] = {
     "ખેડૂત": "indian farmer field",
-    "ખેતર": "farm field crops",
-    "માતા": "indian mother love",
-    "મા ": "indian mother child",
-    "બાળક": "indian child",
-    "છોકરો": "indian boy village",
-    "છોકરી": "indian girl village",
-    "રાજા": "king palace throne",
-    "શેઠ": "indian merchant shopkeeper",
-    "નોકર": "servant worker humble",
-    "વૃક્ષ": "large tree nature",
-    "ઝાડ": "tree nature",
-    "વાંસ": "bamboo forest",
-    "ઘાસ": "grass field wind",
-    "નદી": "river flowing water",
-    "પાણી": "water pouring",
-    "વરસાદ": "heavy rain",
-    "વાવાઝોડું": "storm wind dramatic",
-    "પવન": "wind blowing trees",
-    "કૂતરો": "loyal dog street",
-    "ગામ": "indian village",
-    "મંદિર": "hindu temple",
-    "દુકાન": "small shop market india",
-    "ફળ": "fresh fruit basket",
-    "ભોજન": "indian food meal",
-    "પૈસા": "coins money rupees",
-    "ધન": "gold coins wealth",
-    "રસ્તો": "village road path",
-    "આકાશ": "sky clouds",
-    "સૂરજ": "sunrise golden",
-    "કુંભાર": "potter clay pottery",
-    "વાસણ": "clay pot pottery",
-    "મહેનત": "hard work labour",
-    "ગરીબ": "poor humble india",
-    "આંસુ": "tears emotional face",
-    "હિંમત": "courage determination",
-    "સફળ": "success achievement",
+    # Values are CINEMATIC SCENE descriptions (no "India/Indian/flag" — those
+    # trigger flags & touristy portraits). Favor atmospheric footage over
+    # posed people so the video feels real, not like random stock selfies.
+    "ખેતર": "green farm field crops cinematic",
+    "માતા": "silhouette mother and child sunset warm",
+    "મા ": "silhouette mother and child sunset warm",
+    "બાળક": "child playing countryside slow motion",
+    "છોકરો": "young boy walking rural path back view",
+    "છોકરી": "young girl walking countryside back view",
+    "રાજા": "ancient palace throne room cinematic",
+    "શેઠ": "old marketplace lantern evening",
+    "નોકર": "hands working hard labor close up",
+    "વૃક્ષ": "large old tree golden hour",
+    "ઝાડ": "tree silhouette sunset",
+    "વાંસ": "bamboo forest wind",
+    "ઘાસ": "grass field swaying wind",
+    "નદી": "calm river flowing nature",
+    "પાણી": "water pouring slow motion",
+    "વરસાદ": "rain drops window cinematic",
+    "વાવાઝોડું": "dramatic storm dark clouds",
+    "પવન": "wind blowing trees field",
+    "કૂતરો": "street dog resting village",
+    "ગામ": "rural village huts morning mist",
+    "મંદિર": "ancient temple architecture",
+    "દુકાન": "small old shop lantern evening",
+    "ફળ": "fresh fruit basket rustic",
+    "ભોજન": "simple home cooked meal rustic",
+    "પૈસા": "old coins on table close up",
+    "ધન": "gold coins treasure close up",
+    "રસ્તો": "empty village road misty morning",
+    "આકાશ": "dramatic sky moving clouds timelapse",
+    "સૂરજ": "golden sunrise over fields",
+    "કુંભાર": "potter hands shaping clay close up",
+    "વાસણ": "clay pots handmade rustic",
+    "મહેનત": "hands working hard sweat close up",
+    "ગરીબ": "humble mud house countryside",
+    "આંસુ": "single tear drop macro slow motion",
+    "હિંમત": "person standing on mountain top sunrise",
+    "સફળ": "sunrise mountain summit victory",
+    "ઝઘડો": "storm clouds tension dramatic",
+    "માફી": "two hands reaching together warm",
+    "સમય": "old clock ticking close up",
+    "એકતા": "bundle of sticks rope together",
+    "લાલચ": "gold coins greed dark moody",
+    "જ્ઞાન": "old books candle light wisdom",
+    "સંતોષ": "peaceful calm nature lake sunrise",
 }
 
 
@@ -59,12 +69,15 @@ def beat_to_query(text: str, theme: str, index: int = 0) -> str:
         if len(hits) >= 2:
             break
     if hits:
-        return " ".join(hits[:2])
-    # Fallback: cycle through the niche visual theme fragments.
+        return hits[0]  # one specific scene reads cleaner than two mashed together
+    # Fallback: cycle through varied cinematic scenery (no people, no flags).
     base = [t.strip() for t in theme.replace(";", ",").split(",") if t.strip()]
-    if not base:
-        base = ["cinematic indian village", "nature", "temple"]
-    return base[index % len(base)]
+    scenery = ["misty green fields sunrise", "calm river nature", "ancient temple",
+               "dramatic sky clouds timelapse", "golden wheat field wind",
+               "old tree silhouette sunset", "mountain valley cinematic",
+               "rain on leaves close up"]
+    pool = base + scenery
+    return pool[index % len(pool)]
 
 
 def beats_to_queries(beats: list[dict], theme: str) -> list[str]:

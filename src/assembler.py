@@ -255,8 +255,18 @@ def _process_narration(narration: Path, work: Path, cfg: Config) -> Path:
     if abs(pitch - 1.0) > 1e-3:
         # Shift pitch, then restore tempo so subtitles stay in sync.
         filters.append(f"asetrate=44100*{pitch:.4f},aresample=44100,atempo={1/pitch:.4f}")
+    if cfg.get("voiceover", "enhance", default=True):
+        # Broadcast-style voice: cut rumble, tame sibilance/boom, add presence,
+        # even out dynamics — makes the narration sound fuller and clearer.
+        filters += [
+            "highpass=f=90",                                   # remove low rumble
+            "equalizer=f=250:t=q:w=1.2:g=-2",                  # reduce muddiness
+            "equalizer=f=3200:t=q:w=1.5:g=3",                  # presence/clarity
+            "acompressor=threshold=-18dB:ratio=3:attack=6:release=140:makeup=2",
+        ]
     if cfg.get("voiceover", "loudnorm", default=True):
-        filters.append("loudnorm=I=-16:TP=-1.5:LRA=11")
+        # Slightly louder target for phone speakers (Shorts/Reels).
+        filters.append("loudnorm=I=-14:TP=-1.5:LRA=11")
     out = work / "narration_proc.wav"
     if not filters:
         _run(["ffmpeg", "-y", "-i", str(narration), "-ar", "44100", "-ac", "2", str(out)])
@@ -425,23 +435,23 @@ def _escape_filter_path(p: Path) -> str:
 
 def _burn_subtitles(video: Path, srt: Path, dest: Path, cfg: Config) -> None:
     fonts_dir = cfg.path("assets", "fonts")
-    size = cfg.get("subtitles", "font_size", default=14)
-    if cfg.is_short:
-        size = round(size * 1.15)  # slightly larger for portrait, not huge
-    style = (
-        f"FontName=Noto Sans Gujarati,"
-        f"FontSize={size},Bold=1,"
-        f"PrimaryColour={cfg.get('subtitles', 'primary_color', default='&H00FFFFFF')},"
-        f"OutlineColour={cfg.get('subtitles', 'outline_color', default='&H00000000')},"
-        f"BorderStyle=1,Outline={cfg.get('subtitles', 'outline', default=3)},Shadow=1,"
-        f"Alignment=2,MarginV=70"
-    )
-    # ffmpeg's filter parser treats ':' and '\' specially, so paths (with a
-    # Windows drive letter like D:\...) must use forward slashes and an
-    # escaped colon. Applies to BOTH the srt file and the fonts dir.
-    srt_arg = _escape_filter_path(srt)
+    sub_arg = _escape_filter_path(srt)
     fonts_arg = _escape_filter_path(fonts_dir)
-    vf = f"subtitles='{srt_arg}':fontsdir='{fonts_arg}':force_style='{style}'"
+    if srt.suffix.lower() == ".ass":
+        # ASS carries its own styles (big centered Hook + normal captions).
+        vf = f"subtitles='{sub_arg}':fontsdir='{fonts_arg}'"
+    else:
+        size = cfg.get("subtitles", "font_size", default=14)
+        if cfg.is_short:
+            size = round(size * 1.15)
+        style = (
+            f"FontName=Noto Sans Gujarati,FontSize={size},Bold=1,"
+            f"PrimaryColour={cfg.get('subtitles', 'primary_color', default='&H00FFFFFF')},"
+            f"OutlineColour={cfg.get('subtitles', 'outline_color', default='&H00000000')},"
+            f"BorderStyle=1,Outline={cfg.get('subtitles', 'outline', default=3)},Shadow=1,"
+            f"Alignment=2,MarginV=70"
+        )
+        vf = f"subtitles='{sub_arg}':fontsdir='{fonts_arg}':force_style='{style}'"
     _run([
         "ffmpeg", "-y", "-i", str(video), "-vf", vf,
         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "copy", str(dest),

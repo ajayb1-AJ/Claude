@@ -95,8 +95,11 @@ def synthesize(text: str, out_dir: Path, cfg: Config, make_srt: bool = True) -> 
 
     srt_path: Path | None = None
     if make_srt:
-        srt_path = out_dir / "narration.srt"
-        srt_path.write_text(_manifest_to_srt(beat_meta), encoding="utf-8")
+        # ASS (not SRT) so the FIRST beat renders as a big centered HOOK overlay
+        # (on-screen hook text lifts retention) and the rest as normal captions.
+        srt_path = out_dir / "narration.ass"
+        w, h = cfg.resolution
+        srt_path.write_text(_manifest_to_ass(beat_meta, w, h, cfg), encoding="utf-8")
 
     return VoiceResult(
         audio_path=audio_path, srt_path=srt_path, duration_sec=total,
@@ -270,3 +273,44 @@ def _ts(seconds: float) -> str:
     m, ms = divmod(ms, 60_000)
     s, ms = divmod(ms, 1000)
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+def _ass_ts(seconds: float) -> str:
+    cs = int(round(seconds * 100))  # centiseconds
+    h, cs = divmod(cs, 360000)
+    m, cs = divmod(cs, 6000)
+    s, cs = divmod(cs, 100)
+    return f"{h:d}:{m:02d}:{s:02d}.{cs:02d}"
+
+
+def _manifest_to_ass(beats: list[dict], w: int, h: int, cfg: Config) -> str:
+    """Build an ASS subtitle file. Beat 0 (the hook) shows BIG and CENTERED as a
+    scroll-stopping on-screen hook; the rest show as normal bottom captions.
+    Sizes are in pixels because PlayResX/Y match the real video size."""
+    cap = int(round(h * float(cfg.get("subtitles", "caption_scale", default=0.030))))
+    hook = int(round(h * float(cfg.get("subtitles", "hook_scale", default=0.055))))
+    marginv = int(round(h * 0.12))
+    side = int(round(w * 0.08))
+    header = f"""[Script Info]
+ScriptType: v4.00+
+PlayResX: {w}
+PlayResY: {h}
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Cap,Noto Sans Gujarati,{cap},&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,1,0,0,0,100,100,0,0,1,3,1,2,{side},{side},{marginv},1
+Style: Hook,Noto Sans Gujarati,{hook},&H0000FFFF,&H0000FFFF,&H00000000,&H96000000,1,0,0,0,100,100,0,0,1,5,2,5,{side},{side},{marginv},1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+    lines = [header]
+    for i, b in enumerate(beats):
+        style = "Hook" if i == 0 else "Cap"
+        text = b["text"].replace("\n", r"\N")
+        start = _ass_ts(b["start"])
+        end = _ass_ts(max(b["end"], b["start"] + 0.5))
+        lines.append(f"Dialogue: 0,{start},{end},{style},,0,0,0,,{text}")
+    return "\n".join(lines)

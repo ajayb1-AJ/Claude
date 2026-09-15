@@ -34,13 +34,22 @@ _VID_EXT = {".mp4", ".mov", ".webm", ".mkv"}
 # Reject stock whose description/tags contain these — they rarely match a moral
 # story and look out of place (flags, politics, brands, sports, random selfies).
 _BLOCK = {
-    "flag", "politician", "president", "minister", "election", "vote", "protest",
-    "rally", "parliament", "map", "cricket", "football", "stadium", "bollywood",
-    "celebrity", "actor", "singer", "concert", "logo", "brand", "poster",
-    "billboard", "currency", "banknote", "soldier", "army", "military", "war",
-    "weapon", "gun", "selfie", "model posing", "fashion model", "influencer",
-    "office meeting", "business suit", "corporate", "laptop", "smartphone",
-    "computer", "car", "traffic", "city skyline", "skyscraper",
+    # flags / politics / nation symbols
+    "flag", "tricolor", "tricolour", "tiranga", "independence", "republic day",
+    "politician", "president", "prime minister", "minister", "election", "vote",
+    "protest", "rally", "parliament", "map", "national",
+    # brands / media / sports
+    "cricket", "football", "stadium", "bollywood", "celebrity", "actor",
+    "actress", "singer", "concert", "logo", "brand", "poster", "billboard",
+    "currency", "banknote", "rupee note",
+    # military / weapons
+    "soldier", "army", "military", "war", "weapon", "gun",
+    # posed people / selfies / modern clutter (looks like random personal photos)
+    "selfie", "model", "posing", "fashion", "influencer", "portrait", "headshot",
+    "closeup face", "close-up face", "close up face", "smiling woman",
+    "smiling man", "businessman", "businesswoman", "office", "business suit",
+    "corporate", "meeting", "laptop", "smartphone", "phone", "computer",
+    "car", "traffic", "city skyline", "skyscraper", "wedding", "party",
 }
 
 
@@ -159,10 +168,14 @@ def gather_scene_assets(
 
 
 def _ai_image(query: str, out_dir: Path, i: int, w: int, h: int) -> Path | None:
-    """Generate an on-topic image from the beat's words (Pollinations, free, no key)."""
-    prompt = f"{query}, cinematic, warm lighting, highly detailed, no text, no watermark"
+    """Generate an on-topic, realistic scene from the beat's words (Pollinations,
+    free, no key). Prompt is scenic/cinematic and explicitly avoids flags,
+    text, logos and posed portraits."""
+    prompt = (f"{query}, realistic cinematic film still, natural lighting, "
+              f"shallow depth of field, atmospheric, photorealistic. "
+              f"No text, no watermark, no logo, no flag, no map, no posed portrait.")
     url = (_POLLINATIONS + quote(prompt)
-           + f"?width={w}&height={h}&nologo=true&seed={random.randint(1, 10**7)}")
+           + f"?width={w}&height={h}&nologo=true&model=flux&seed={random.randint(1, 10**7)}")
     dest = out_dir / f"scene_{i:02d}_ai.jpg"
     try:
         r = requests.get(url, timeout=90)
