@@ -22,3 +22,7 @@ __pycache__/
 .venv/
 venv/
 .DS_Store
+
+# Daily-run bookkeeping (per-machine)
+stories/used.log
+stories/done/

@@ -113,38 +113,43 @@ def main(argv: list[str] | None = None) -> int:
 
     from src.pipeline import run_pipeline
 
-    # Daily mode: make N videos from the next N queued scripts. No API.
+    # Daily mode: make N videos from the next N UNUSED scripts. No API.
+    # Used scripts are tracked in stories/used.log (git-ignored) instead of being
+    # moved, so the queue folder stays clean and `git pull` never conflicts.
     if args.daily:
-        import shutil, time as _t
         from src.script_generator import manual_script
         queue_dir = Path(__file__).parent / "stories" / "queue"
-        done_dir = Path(__file__).parent / "stories" / "done"
-        done_dir.mkdir(parents=True, exist_ok=True)
+        used_log = Path(__file__).parent / "stories" / "used.log"
         n_want = args.count or int(cfg.get("daily", "count", default=3))
 
+        used = set()
+        if used_log.exists():
+            used = {ln.strip() for ln in used_log.read_text(encoding="utf-8").splitlines() if ln.strip()}
+        all_scripts = sorted(queue_dir.glob("*.txt")) if queue_dir.exists() else []
+        available = [s for s in all_scripts if s.name not in used]
+
+        if not available:
+            print(f"No UNUSED scripts left in stories/queue/ ({len(all_scripts)} total, "
+                  f"all already used). Ask Claude for a fresh batch.", file=sys.stderr)
+            return 2
+
         made = failed = 0
-        for _ in range(n_want):
-            scripts = sorted(queue_dir.glob("*.txt")) if queue_dir.exists() else []
-            if not scripts:
-                print(f"Queue empty after {made} video(s). Add more scripts to "
-                      f"stories/queue/ (ask Claude).", file=sys.stderr)
-                break
-            nxt = scripts[0]
-            print(f"\n>>> Daily video {made + failed + 1}/{n_want}: {nxt.name} "
-                  f"({len(scripts)} in queue)")
+        for nxt in available[:n_want]:
+            print(f"\n>>> Daily video {made + failed + 1}/{min(n_want, len(available))}: "
+                  f"{nxt.name} ({len(available)} unused in queue)")
             try:
                 script = manual_script(nxt.read_text(encoding="utf-8"), cfg)
                 run_pipeline(script.title, cfg, do_upload=do_upload, script=script)
-                shutil.move(str(nxt), str(done_dir / f"{_t.strftime('%Y%m%d')}_{nxt.name}"))
                 made += 1
             except Exception as exc:
                 failed += 1
                 print(f"!! Failed on '{nxt.name}': {exc}", file=sys.stderr)
-                # Move the bad script aside so it doesn't block tomorrow's run.
-                shutil.move(str(nxt), str(done_dir / f"FAILED_{_t.strftime('%Y%m%d')}_{nxt.name}"))
+            # Mark as used either way, so it isn't retried tomorrow.
+            with open(used_log, "a", encoding="utf-8") as fh:
+                fh.write(nxt.name + "\n")
 
-        left = len(sorted(queue_dir.glob("*.txt"))) if queue_dir.exists() else 0
-        print(f"\nDone. {made} made, {failed} failed; {left} left in queue.")
+        left = len([s for s in all_scripts if s.name not in used]) - (made + failed)
+        print(f"\nDone. {made} made, {failed} failed; ~{max(0, left)} fresh scripts left.")
         return 1 if (made == 0) else 0
 
     # Manual-script mode: no Anthropic API used at all.
